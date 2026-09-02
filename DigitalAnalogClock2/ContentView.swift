@@ -8,20 +8,35 @@
 import SwiftUI
 import Combine
 import AVFoundation
+import UIKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var currentDate = Date()
     @State private var showSettings = false
-    @State private var keepLabelsUpright = false
-    @State private var sweepSecondHand = true
-    @State private var tickVolume: Float = 0.8
-    @State private var showOuterRing = true
-    @State private var timeZone: TimeZone = .current
+
+    @AppStorage("keepLabelsUpright")
+    private var keepLabelsUpright = false
+
+    @AppStorage("sweepSecondHand")
+    private var sweepSecondHand = true
+
+    // AppStorageはFloatに対応していないためDoubleを使用する
+    @AppStorage("tickVolume")
+    private var tickVolume: Double = 0.8
+
+    @AppStorage("showOuterRing")
+    private var showOuterRing = true
+
+    @AppStorage("timeZoneIdentifier")
+    private var timeZoneIdentifier = TimeZone.current.identifier
 
     @AppStorage("gpsSyncEnabled")
     private var gpsSyncEnabled = true
+
+    @StateObject private var designSettings =
+        ClockDesignSettings()
 
     @StateObject private var locationTimeZoneManager =
         LocationTimeZoneManager()
@@ -35,6 +50,11 @@ struct ContentView: View {
         on: .main,
         in: .common
     ).autoconnect()
+
+    private var timeZone: TimeZone {
+        TimeZone(identifier: timeZoneIdentifier)
+            ?? .current
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -68,7 +88,7 @@ struct ContentView: View {
                 return
             }
 
-            timeZone = newTimeZone
+            timeZoneIdentifier = newTimeZone.identifier
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else {
@@ -107,8 +127,11 @@ struct ContentView: View {
 
             try audioSession.setActive(true)
 
-            let player = try AVAudioPlayer(contentsOf: soundURL)
-            player.volume = tickVolume
+            let player = try AVAudioPlayer(
+                contentsOf: soundURL
+            )
+
+            player.volume = Float(tickVolume)
             player.numberOfLoops = 0
             player.prepareToPlay()
 
@@ -136,7 +159,7 @@ struct ContentView: View {
 
         tickPlayer.stop()
         tickPlayer.currentTime = 0
-        tickPlayer.volume = tickVolume
+        tickPlayer.volume = Float(tickVolume)
 
         let didPlay = tickPlayer.play()
 
@@ -162,7 +185,17 @@ struct ContentView: View {
         .overlay(alignment: .topTrailing) {
             settingsButton(size: size)
         }
-        .background(clockBackground)
+        .background {
+            ZStack {
+                // Base background behind the clock (outside the frame remains visible)
+                designSettings.backgroundColor
+                // Photo only fills the inner face of the frame (outside stays transparent to base)
+                clockFaceBackgroundMasked(size: size)
+            }
+        }
+        .clipShape(
+            RoundedRectangle(cornerRadius: size * 0.02)
+        )
         .sheet(isPresented: $showSettings) {
             settingsView
         }
@@ -183,58 +216,119 @@ struct ContentView: View {
             ClockHand(
                 angle: hourAngle,
                 length: clockRadius * 0.55,
-                color: .blue,
+                color: designSettings.hourHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
                 label: hourString,
-                labelColor: .blue,
+                labelColor: designSettings.hourHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
 
             ClockHand(
                 angle: minuteAngle,
                 length: clockRadius * 0.80,
-                color: .green,
+                color: designSettings.minuteHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
                 label: minuteString,
-                labelColor: .green,
+                labelColor: designSettings.minuteHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
 
             ClockHand(
                 angle: secondAngle,
                 length: clockRadius * 0.92,
-                color: .red,
+                color: designSettings.secondHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
                 label: secondString,
-                labelColor: .red,
+                labelColor: designSettings.secondHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
 
             centerCircle(size: size)
         }
-        .frame(width: size, height: size)
+        .frame(
+            width: size,
+            height: size
+        )
+    }
+
+    @ViewBuilder
+    private func clockFaceBackgroundMasked(size: CGFloat) -> some View {
+        if let image = designSettings.backgroundImage {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipped()
+                .mask(innerMask(size: size))
+        }
+    }
+
+    @ViewBuilder
+    private func innerMask(size: CGFloat) -> some View {
+        // Match the visible inner edge of the stroked frame in outerRing():
+        let lineWidth = size * 0.03
+        let inset = lineWidth / 2
+        switch designSettings.frameStyle {
+        case .circle:
+            Circle().inset(by: inset)
+        case .rectangle:
+            Rectangle().inset(by: inset)
+        case .roundedRectangle:
+            RoundedRectangle(cornerRadius: size * 0.12).inset(by: inset)
+        }
     }
 
     @ViewBuilder
     private func outerRing(size: CGFloat) -> some View {
         if showOuterRing {
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.cyan.opacity(0.8),
-                            .white
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: size * 0.07
+            let lineWidth = size * 0.03
+            let insetAmount = lineWidth / 2
+
+            switch designSettings.frameStyle {
+            case .circle:
+                Circle()
+                    .inset(by: insetAmount)
+                    .stroke(
+                        designSettings.frameColor,
+                        lineWidth: lineWidth
+                    )
+                    .frame(
+                        width: size,
+                        height: size
+                    )
+                    .shadow(radius: 8)
+
+            case .rectangle:
+                Rectangle()
+                    .inset(by: insetAmount)
+                    .stroke(
+                        designSettings.frameColor,
+                        lineWidth: lineWidth
+                    )
+                    .frame(
+                        width: size,
+                        height: size
+                    )
+                    .shadow(radius: 8)
+
+            case .roundedRectangle:
+                RoundedRectangle(
+                    cornerRadius: size * 0.12
                 )
-                .frame(width: size, height: size)
+                .inset(by: insetAmount)
+                .stroke(
+                    designSettings.frameColor,
+                    lineWidth: lineWidth
+                )
+                .frame(
+                    width: size,
+                    height: size
+                )
                 .shadow(radius: 8)
+            }
         }
     }
 
@@ -287,31 +381,54 @@ struct ContentView: View {
         .padding(8)
     }
 
-    private var clockBackground: some View {
-        LinearGradient(
-            colors: [
-                Color(
-                    .sRGB,
-                    red: 0.7,
-                    green: 0.85,
-                    blue: 0.98,
-                    opacity: 1
-                ),
-                .green.opacity(0.14)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
     private var settingsView: some View {
         SettingsView(
-            keepLabelsUpright: $keepLabelsUpright,
-            sweepSecondHand: $sweepSecondHand,
-            tickVolume: $tickVolume,
-            showOuterRing: $showOuterRing,
-            timeZone: $timeZone,
-            gpsSyncEnabled: $gpsSyncEnabled
+            keepLabelsUpright: Binding(
+                get: {
+                    keepLabelsUpright
+                },
+                set: { value in
+                    keepLabelsUpright = value
+                }
+            ),
+            sweepSecondHand: Binding(
+                get: {
+                    sweepSecondHand
+                },
+                set: { value in
+                    sweepSecondHand = value
+                }
+            ),
+            tickVolume: Binding(
+                get: {
+                    Float(tickVolume)
+                },
+                set: { value in
+                    tickVolume = Double(value)
+
+                    if let tickPlayer {
+                        tickPlayer.volume = value
+                    }
+                }
+            ),
+            showOuterRing: Binding(
+                get: {
+                    showOuterRing
+                },
+                set: { value in
+                    showOuterRing = value
+                }
+            ),
+            timeZone: Binding(
+                get: {
+                    timeZone
+                },
+                set: { newTimeZone in
+                    timeZoneIdentifier = newTimeZone.identifier
+                }
+            ),
+            gpsSyncEnabled: $gpsSyncEnabled,
+            designSettings: designSettings
         ) {
             showSettings = false
         }
@@ -345,19 +462,31 @@ struct ContentView: View {
     }
 
     private var hour: Int {
-        calendar.component(.hour, from: currentDate)
+        calendar.component(
+            .hour,
+            from: currentDate
+        )
     }
 
     private var minute: Int {
-        calendar.component(.minute, from: currentDate)
+        calendar.component(
+            .minute,
+            from: currentDate
+        )
     }
 
     private var second: Int {
-        calendar.component(.second, from: currentDate)
+        calendar.component(
+            .second,
+            from: currentDate
+        )
     }
 
     private var nanosecond: Int {
-        calendar.component(.nanosecond, from: currentDate)
+        calendar.component(
+            .nanosecond,
+            from: currentDate
+        )
     }
 
     private var hourAngle: Angle {
@@ -434,6 +563,9 @@ struct ContentView: View {
         case "Australia/Sydney":
             return "オーストラリア／シドニー"
 
+        case "Asia/Amman":
+            return "ヨルダン／アンマン"
+
         default:
             return timeZone.identifier
                 .replacingOccurrences(
@@ -502,7 +634,9 @@ struct ClockHand: View {
                             : .zero
                     )
             }
-            .offset(y: -length + maxWidth * 0.2)
+            .offset(
+                y: -length + maxWidth * 0.2
+            )
             .rotationEffect(angle)
         }
     }

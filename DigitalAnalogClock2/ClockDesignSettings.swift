@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import UIKit
 
 enum ClockFrameStyle: String, CaseIterable, Identifiable {
@@ -93,7 +94,7 @@ final class ClockDesignSettings: ObservableObject {
             forKey: Keys.frameStyle
         ),
            let savedFrameStyle = ClockFrameStyle(
-            rawValue: rawValue
+               rawValue: rawValue
            ) {
             frameStyle = savedFrameStyle
         } else {
@@ -198,7 +199,6 @@ private struct RGBAComponents {
 
 private extension Color {
     var rgbaComponents: RGBAComponents? {
-        #if os(iOS)
         var red: CGFloat = 0
         var green: CGFloat = 0
         var blue: CGFloat = 0
@@ -219,8 +219,5 @@ private extension Color {
             blue: Double(blue),
             opacity: Double(alpha)
         )
-        #else
-        return nil
-        #endif
     }
 }

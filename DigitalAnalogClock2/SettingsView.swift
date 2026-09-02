@@ -1,5 +1,7 @@
 import SwiftUI
 import Foundation
+import PhotosUI
+import UIKit
 
 struct SettingsView: View {
     @Binding var keepLabelsUpright: Bool
@@ -9,11 +11,17 @@ struct SettingsView: View {
     @Binding var timeZone: TimeZone
     @Binding var gpsSyncEnabled: Bool
 
+    @ObservedObject var designSettings: ClockDesignSettings
+
     var onOK: () -> Void
 
     @State private var showingMultipleTimeZones = false
     @State private var showingUnavailableTimeZoneAlert = false
     @State private var regionTimeZoneCandidates: [TimeZoneOption] = []
+    @State private var showingDesignSettings = false
+    @State private var timeZonePickerSearchText: String = ""
+    @State private var showingTimeZoneSearch = false
+    @State private var timeZoneSearchText: String = ""
 
     private var timeZoneOptions: [TimeZoneOption] {
         TimeZone.knownTimeZoneIdentifiers
@@ -28,55 +36,90 @@ struct SettingsView: View {
                 )
             }
             .sorted {
-                $0.displayName.localizedStandardCompare($1.displayName)
-                    == .orderedAscending
+                let nameComparison = $0.title.localizedStandardCompare(
+                    $1.title
+                )
+
+                if nameComparison == .orderedSame {
+                    return $0.identifier < $1.identifier
+                }
+
+                return nameComparison == .orderedAscending
             }
+    }
+    private var filteredTimeZoneOptions: [TimeZoneOption] {
+        let q = timeZonePickerSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return timeZoneOptions }
+        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return timeZoneOptions.filter { option in
+            let candidates = [
+                option.title,
+                option.identifier,
+                option.displayName
+            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
+            return candidates.contains { $0.contains(normalizedQuery) }
+        }
+    }
+    private var currentTimeZoneTitle: String {
+        timeZoneOptions.first(where: { $0.identifier == timeZone.identifier })?.title ?? timeZone.identifier
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle(
-                        "文字を常に上向きにする",
-                        isOn: $keepLabelsUpright
-                    )
-                }
-
-                Section(header: Text("秒針")) {
-                    Toggle(
-                        "スイープ秒針",
-                        isOn: $sweepSecondHand
-                    )
-
-                    HStack {
-                        Image(systemName: "speaker.fill")
-
-                        Slider(
-                            value: Binding(
-                                get: {
-                                    Double(tickVolume)
-                                },
-                                set: { value in
-                                    tickVolume = Float(value)
+                Section(header: Text("時計デザイン")) {
+                    Button {
+                        showingDesignSettings = true
+                    } label: {
+                        VStack(
+                            alignment: .leading,
+                            spacing: 10
+                        ) {
+                            DesignClockPreview(
+                                settings: designSettings,
+                                keepLabelsUpright: keepLabelsUpright
+                            )
+                            .frame(width: 220, height: 220)
+                            .mask {
+                                GeometryReader { geo in
+                                    let size = min(geo.size.width, geo.size.height)
+                                    switch designSettings.frameStyle {
+                                    case .circle:
+                                        Circle()
+                                    case .rectangle:
+                                        Rectangle()
+                                    case .roundedRectangle:
+                                        RoundedRectangle(cornerRadius: size * 0.12)
+                                    }
                                 }
-                            ),
-                            in: 0...1
-                        )
+                            }
+                            .overlay {
+                                GeometryReader { geo in
+                                    let size = min(geo.size.width, geo.size.height)
+                                    switch designSettings.frameStyle {
+                                    case .circle:
+                                        Circle().stroke(.secondary.opacity(0.35), lineWidth: 1)
+                                    case .rectangle:
+                                        Rectangle().stroke(.secondary.opacity(0.35), lineWidth: 1)
+                                    case .roundedRectangle:
+                                        RoundedRectangle(cornerRadius: size * 0.12)
+                                            .stroke(.secondary.opacity(0.35), lineWidth: 1)
+                                    }
+                                }
+                            }
 
-                        Image(systemName: "speaker.wave.3.fill")
+                            HStack {
+                                Text("時計外観を変更")
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
-
-                    Text("ステップ秒針のときに鳴る音の音量")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section(header: Text("表示")) {
-                    Toggle(
-                        "文字盤の外側の丸枠を表示",
-                        isOn: $showOuterRing
-                    )
+                    .buttonStyle(.plain)
                 }
 
                 Section(header: Text("位置情報")) {
@@ -93,33 +136,28 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("タイムゾーン")) {
-                    Picker(
-                        "タイムゾーン",
-                        selection: Binding(
-                            get: {
-                                timeZone.identifier
-                            },
-                            set: { identifier in
-                                guard identifier != timeZone.identifier else {
-                                    return
-                                }
-
-                                gpsSyncEnabled = false
-
-                                if let selectedTimeZone = TimeZone(
-                                    identifier: identifier
-                                ) {
-                                    timeZone = selectedTimeZone
-                                }
-                            }
-                        )
-                    ) {
-                        ForEach(timeZoneOptions) { option in
-                            Text(option.displayName)
-                                .tag(option.identifier)
+                    NavigationLink {
+                        TimeZoneSelectionView(
+                            options: timeZoneOptions,
+                            selectedIdentifier: timeZone.identifier
+                        ) { option in
+                            selectRegionTimeZone(option)
+                        }
+                    } label: {
+                        HStack {
+                            Text("タイムゾーン")
+                            Spacer()
+                            Text(currentTimeZoneTitle)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
-                    .pickerStyle(.navigationLink)
+
+                    Text(
+                        "同じUTC時差でも、地域ごとに夏時間や過去の時差変更が異なる場合があります。"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
 
                     Button {
                         applyRegionTimeZone()
@@ -129,39 +167,67 @@ struct SettingsView: View {
                             systemImage: "globe"
                         )
                     }
+                    Button {
+                        prefillAndOpenSearchFromRegion()
+                    } label: {
+                        Label(
+                            "言語と地域の地域の設定から探す",
+                            systemImage: "magnifyingglass"
+                        )
+                    }
                     .font(.footnote)
                 }
             }
             .navigationTitle("設定")
-            .toolbar {
-                ToolbarItem(
-                    placement: .navigationBarTrailing
-                ) {
-                    Button("OK") {
-                        onOK()
-                    }
+        }
+        .toolbar {
+            ToolbarItem(
+                placement: .navigationBarTrailing
+            ) {
+                Button("完了") {
+                    onOK()
                 }
             }
-            .alert(
-                "タイムゾーンを自動判定できません",
-                isPresented: $showingUnavailableTimeZoneAlert
-            ) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text("タイムゾーン一覧から選択して下さい。")
-            }
-            .confirmationDialog(
-                "複数のタイムゾーンがあります。一覧から選択して下さい。",
-                isPresented: $showingMultipleTimeZones,
-                titleVisibility: .visible
-            ) {
-                ForEach(regionTimeZoneCandidates) { option in
-                    Button(option.displayName) {
-                        selectRegionTimeZone(option)
-                    }
+        }
+        .alert(
+            "タイムゾーンを自動判定できません",
+            isPresented: $showingUnavailableTimeZoneAlert
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("タイムゾーン一覧から選択して下さい。")
+        }
+        .confirmationDialog(
+            "複数のタイムゾーンがあります。一覧から選択して下さい。",
+            isPresented: $showingMultipleTimeZones,
+            titleVisibility: .visible
+        ) {
+            ForEach(regionTimeZoneCandidates) { option in
+                Button {
+                    selectRegionTimeZone(option)
+                } label: {
+                    Text(option.displayName)
                 }
+            }
 
-                Button("キャンセル", role: .cancel) {}
+            Button("キャンセル", role: .cancel) {}
+        }
+        .sheet(isPresented: $showingDesignSettings) {
+            DesignSettingsView(
+                keepLabelsUpright: $keepLabelsUpright,
+                sweepSecondHand: $sweepSecondHand,
+                tickVolume: $tickVolume,
+                showOuterRing: $showOuterRing,
+                settings: designSettings
+            )
+        }
+        .sheet(isPresented: $showingTimeZoneSearch) {
+            TimeZoneSearchView(
+                options: timeZoneOptions,
+                searchText: $timeZoneSearchText
+            ) { option in
+                selectRegionTimeZone(option)
+                showingTimeZoneSearch = false
             }
         }
     }
@@ -189,6 +255,15 @@ struct SettingsView: View {
             showingMultipleTimeZones = true
         }
     }
+    private func prefillAndOpenSearchFromRegion() {
+        if let code = Locale.current.regionCode {
+            let name = Locale.current.localizedString(forRegionCode: code) ?? code
+            timeZoneSearchText = name
+        } else {
+            timeZoneSearchText = ""
+        }
+        showingTimeZoneSearch = true
+    }
 
     private func selectRegionTimeZone(_ option: TimeZoneOption) {
         guard option.identifier != timeZone.identifier else {
@@ -202,308 +277,305 @@ struct SettingsView: View {
     private func regionTimeZoneCandidates(
         for regionCode: String
     ) -> [TimeZoneOption] {
-        let identifiers = regionCodeToTimeZoneIDs(
-            regionCode.uppercased()
-        )
+        regionCodeToTimeZoneIDs(regionCode.uppercased())
+            .compactMap { identifier in
+                guard let timeZone = TimeZone(identifier: identifier) else {
+                    return nil
+                }
 
-        return identifiers.compactMap { identifier in
-            guard let timeZone = TimeZone(identifier: identifier) else {
-                return nil
+                return TimeZoneOption(
+                    identifier: identifier,
+                    timeZone: timeZone
+                )
             }
-
-            return TimeZoneOption(
-                identifier: identifier,
-                timeZone: timeZone
-            )
-        }
     }
 
     private func regionCodeToTimeZoneIDs(
         _ regionCode: String
     ) -> [String] {
-        switch regionCode {
-        case "AD":
-            return ["Europe/Andorra"]
-
-        case "AE":
-            return ["Asia/Dubai"]
-
-        case "AR":
-            return ["America/Argentina/Buenos_Aires"]
-
-        case "AT":
-            return ["Europe/Vienna"]
-
-        case "AU":
-            return [
-                "Australia/Sydney",
-                "Australia/Melbourne",
-                "Australia/Brisbane",
-                "Australia/Adelaide",
-                "Australia/Perth",
-                "Australia/Darwin",
-                "Australia/Hobart"
-            ]
-
-        case "BE":
-            return ["Europe/Brussels"]
-
-        case "BH":
-            return ["Asia/Bahrain"]
-
-        case "BR":
-            return [
-                "America/Sao_Paulo",
-                "America/Manaus",
-                "America/Belem",
-                "America/Fortaleza",
-                "America/Recife",
-                "America/Bahia",
-                "America/Porto_Velho",
-                "America/Boa_Vista",
-                "America/Rio_Branco"
-            ]
-
-        case "CA":
-            return [
-                "America/Toronto",
-                "America/Vancouver",
-                "America/Edmonton",
-                "America/Winnipeg",
-                "America/Halifax",
-                "America/St_Johns"
-            ]
-
-        case "CH":
-            return ["Europe/Zurich"]
-
-        case "CN":
-            return ["Asia/Shanghai"]
-
-        case "CZ":
-            return ["Europe/Prague"]
-
-        case "DE":
-            return ["Europe/Berlin"]
-
-        case "DK":
-            return ["Europe/Copenhagen"]
-
-        case "EG":
-            return ["Africa/Cairo"]
-
-        case "ES":
-            return [
-                "Europe/Madrid",
-                "Atlantic/Canary"
-            ]
-
-        case "FI":
-            return ["Europe/Helsinki"]
-
-        case "FO":
-            return ["Atlantic/Faroe"]
-
-        case "FR":
-            return ["Europe/Paris"]
-
-        case "GB":
-            return ["Europe/London"]
-
-        case "GG":
-            return ["Europe/Guernsey"]
-
-        case "GI":
-            return ["Europe/Gibraltar"]
-
-        case "GL":
-            return [
-                "America/Nuuk",
-                "America/Godthab",
-                "America/Scoresbysund",
-                "America/Thule"
-            ]
-
-        case "GR":
-            return ["Europe/Athens"]
-
-        case "HK":
-            return ["Asia/Hong_Kong"]
-
-        case "HT":
-            return ["America/Port-au-Prince"]
-
-        case "HU":
-            return ["Europe/Budapest"]
-
-        case "ID":
-            return [
-                "Asia/Jakarta",
-                "Asia/Makassar",
-                "Asia/Jayapura"
-            ]
-
-        case "IE":
-            return ["Europe/Dublin"]
-
-        case "IM":
-            return ["Europe/Isle_of_Man"]
-
-        case "IN":
-            return ["Asia/Kolkata"]
-
-        case "IS":
-            return ["Atlantic/Reykjavik"]
-
-        case "IT":
-            return ["Europe/Rome"]
-
-        case "JE":
-            return ["Europe/Jersey"]
-
-        case "JO":
-            return ["Asia/Amman"]
-
-        case "KE":
-            return ["Africa/Nairobi"]
-
-        case "KR":
-            return ["Asia/Seoul"]
-
-        case "KW":
-            return ["Asia/Kuwait"]
-
-        case "LI":
-            return ["Europe/Vaduz"]
-
-        case "LU":
-            return ["Europe/Luxembourg"]
-
-        case "MC":
-            return ["Europe/Monaco"]
-
-        case "MX":
-            return [
-                "America/Mexico_City",
-                "America/Cancun",
-                "America/Chihuahua",
-                "America/Hermosillo",
-                "America/Matamoros",
-                "America/Mazatlan",
-                "America/Merida",
-                "America/Monterrey",
-                "America/Ojinaga",
-                "America/Tijuana"
-            ]
-
-        case "MT":
-            return ["Europe/Malta"]
-
-        case "MY":
-            return ["Asia/Kuala_Lumpur"]
-
-        case "NC":
-            return ["Pacific/Noumea"]
-
-        case "NG":
-            return ["Africa/Lagos"]
-
-        case "NL":
-            return ["Europe/Amsterdam"]
-
-        case "NO":
-            return ["Europe/Oslo"]
-
-        case "NR":
-            return ["Pacific/Nauru"]
-
-        case "NZ":
-            return [
-                "Pacific/Auckland",
-                "Pacific/Chatham"
-            ]
-
-        case "OM":
-            return ["Asia/Muscat"]
-
-        case "PG":
-            return [
-                "Pacific/Port_Moresby",
-                "Pacific/Bougainville"
-            ]
-
-        case "PL":
-            return ["Europe/Warsaw"]
-
-        case "PT":
-            return [
-                "Europe/Lisbon",
-                "Atlantic/Madeira",
-                "Atlantic/Azores"
-            ]
-
-        case "QA":
-            return ["Asia/Qatar"]
-
-        case "RU":
-            return [
-                "Europe/Moscow",
-                "Europe/Kaliningrad",
-                "Europe/Samara",
-                "Asia/Yekaterinburg",
-                "Asia/Omsk",
-                "Asia/Novosibirsk",
-                "Asia/Irkutsk",
-                "Asia/Yakutsk",
-                "Asia/Vladivostok",
-                "Asia/Magadan",
-                "Asia/Sakhalin",
-                "Asia/Kamchatka",
-                "Asia/Anadyr"
-            ]
-
-        case "SA":
-            return ["Asia/Riyadh"]
-
-        case "SB":
-            return ["Pacific/Guadalcanal"]
-
-        case "SE":
-            return ["Europe/Stockholm"]
-
-        case "SG":
-            return ["Asia/Singapore"]
-
-        case "SM":
-            return ["Europe/San_Marino"]
-
-        case "TR":
-            return ["Europe/Istanbul"]
-
-        case "UA":
-            return ["Europe/Kyiv"]
-
-        case "US":
-            return [
-                "America/New_York",
-                "America/Chicago",
-                "America/Denver",
-                "America/Los_Angeles",
-                "America/Anchorage",
-                "Pacific/Honolulu"
-            ]
-
-        case "VA":
-            return ["Europe/Vatican"]
-
-        case "ZA":
-            return ["Africa/Johannesburg"]
-
-        case "JP":
-            return ["Asia/Tokyo"]
-
-        default:
-            return []
+        Self.regionTimeZoneMap[regionCode] ?? []
+    }
+
+    private static let regionTimeZoneMap: [
+        String: [String]
+    ] = [
+        "AD": ["Europe/Andorra"],
+        "AE": ["Asia/Dubai"],
+        "AR": ["America/Argentina/Buenos_Aires"],
+        "AT": ["Europe/Vienna"],
+        "AU": [
+            "Australia/Sydney",
+            "Australia/Melbourne",
+            "Australia/Brisbane",
+            "Australia/Adelaide",
+            "Australia/Perth",
+            "Australia/Darwin",
+            "Australia/Hobart"
+        ],
+        "BE": ["Europe/Brussels"],
+        "BH": ["Asia/Bahrain"],
+        "BR": [
+            "America/Sao_Paulo",
+            "America/Manaus",
+            "America/Belem",
+            "America/Fortaleza",
+            "America/Recife",
+            "America/Bahia",
+            "America/Porto_Velho",
+            "America/Boa_Vista",
+            "America/Rio_Branco"
+        ],
+        "CA": [
+            "America/Toronto",
+            "America/Vancouver",
+            "America/Edmonton",
+            "America/Winnipeg",
+            "America/Halifax",
+            "America/St_Johns"
+        ],
+        "CH": ["Europe/Zurich"],
+        "CN": ["Asia/Shanghai"],
+        "CZ": ["Europe/Prague"],
+        "DE": ["Europe/Berlin"],
+        "DK": ["Europe/Copenhagen"],
+        "EG": ["Africa/Cairo"],
+        "ES": [
+            "Europe/Madrid",
+            "Atlantic/Canary"
+        ],
+        "FI": ["Europe/Helsinki"],
+        "FO": ["Atlantic/Faroe"],
+        "FR": ["Europe/Paris"],
+        "GB": ["Europe/London"],
+        "GG": ["Europe/Guernsey"],
+        "GI": ["Europe/Gibraltar"],
+        "GL": [
+            "America/Nuuk",
+            "America/Godthab",
+            "America/Scoresbysund",
+            "America/Thule"
+        ],
+        "GR": ["Europe/Athens"],
+        "HK": ["Asia/Hong_Kong"],
+        "HT": ["America/Port-au-Prince"],
+        "HU": ["Europe/Budapest"],
+        "ID": [
+            "Asia/Jakarta",
+            "Asia/Makassar",
+            "Asia/Jayapura"
+        ],
+        "IE": ["Europe/Dublin"],
+        "IM": ["Europe/Isle_of_Man"],
+        "IN": ["Asia/Kolkata"],
+        "IS": ["Atlantic/Reykjavik"],
+        "IT": ["Europe/Rome"],
+        "JE": ["Europe/Jersey"],
+        "JO": ["Asia/Amman"],
+        "JP": ["Asia/Tokyo"],
+        "KE": ["Africa/Nairobi"],
+        "KR": ["Asia/Seoul"],
+        "KW": ["Asia/Kuwait"],
+        "LI": ["Europe/Vaduz"],
+        "LU": ["Europe/Luxembourg"],
+        "MC": ["Europe/Monaco"],
+        "MT": ["Europe/Malta"],
+        "MX": [
+            "America/Mexico_City",
+            "America/Cancun",
+            "America/Chihuahua",
+            "America/Hermosillo",
+            "America/Matamoros",
+            "America/Mazatlan",
+            "America/Merida",
+            "America/Monterrey",
+            "America/Ojinaga",
+            "America/Tijuana"
+        ],
+        "VE": ["America/Caracas"],
+        "PE": ["America/Lima"],
+        "CL": [
+            "America/Santiago",
+            "Pacific/Easter"
+        ],
+        "CO": ["America/Bogota"],
+        "EC": [
+            "America/Guayaquil",
+            "Pacific/Galapagos"
+        ],
+        "BO": ["America/La_Paz"],
+        "PY": ["America/Asuncion"],
+        "UY": ["America/Montevideo"],
+        "PA": ["America/Panama"],
+        "CR": ["America/Costa_Rica"],
+        "GT": ["America/Guatemala"],
+        "SV": ["America/El_Salvador"],
+        "HN": ["America/Tegucigalpa"],
+        "NI": ["America/Managua"],
+        "DO": ["America/Santo_Domingo"],
+        "CU": ["America/Havana"],
+        "PR": ["America/Puerto_Rico"],
+        "JM": ["America/Jamaica"],
+        "TT": ["America/Port_of_Spain"],
+        "BZ": ["America/Belize"],
+        "GF": ["America/Cayenne"],
+        "GY": ["America/Guyana"],
+        "SR": ["America/Paramaribo"],
+        "NL": ["Europe/Amsterdam"],
+        "NO": ["Europe/Oslo"],
+        "NR": ["Pacific/Nauru"],
+        "NZ": [
+            "Pacific/Auckland",
+            "Pacific/Chatham"
+        ],
+        "OM": ["Asia/Muscat"],
+        "PG": [
+            "Pacific/Port_Moresby",
+            "Pacific/Bougainville"
+        ],
+        "PL": ["Europe/Warsaw"],
+        "PT": [
+            "Europe/Lisbon",
+            "Atlantic/Madeira",
+            "Atlantic/Azores"
+        ],
+        "QA": ["Asia/Qatar"],
+        "RU": [
+            "Europe/Moscow",
+            "Europe/Kaliningrad",
+            "Europe/Samara",
+            "Asia/Yekaterinburg",
+            "Asia/Omsk",
+            "Asia/Novosibirsk",
+            "Asia/Irkutsk",
+            "Asia/Yakutsk",
+            "Asia/Vladivostok",
+            "Asia/Magadan",
+            "Asia/Sakhalin",
+            "Asia/Kamchatka",
+            "Asia/Anadyr"
+        ],
+        "SA": ["Asia/Riyadh"],
+        "SB": ["Pacific/Guadalcanal"],
+        "SE": ["Europe/Stockholm"],
+        "SG": ["Asia/Singapore"],
+        "SM": ["Europe/San_Marino"],
+        "TR": ["Europe/Istanbul"],
+        "UA": ["Europe/Kyiv"],
+        "VA": ["Europe/Vatican"],
+        "ZA": ["Africa/Johannesburg"]
+    ]
+}
+
+private struct TimeZoneSelectionView: View {
+    let options: [TimeZoneOption]
+    let selectedIdentifier: String
+    let onSelect: (TimeZoneOption) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+
+    private var filteredOptions: [TimeZoneOption] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty { return options }
+        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return options.filter { option in
+            let candidates = [
+                option.title,
+                option.identifier,
+                option.displayName
+            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
+            return candidates.contains { $0.contains(normalizedQuery) }
+        }
+    }
+
+    var body: some View {
+        List {
+            ForEach(filteredOptions) { option in
+                Button {
+                    onSelect(option)
+                    dismiss()
+                } label: {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(option.title)
+                                .foregroundStyle(.primary)
+                            Text(option.identifier)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        if option.identifier == selectedIdentifier {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(.tint)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("タイムゾーン")
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: "タイムゾーン名・都市名・識別子で検索"
+        )
+    }
+}
+
+private struct TimeZoneSearchView: View {
+    let options: [TimeZoneOption]
+    @Binding var searchText: String
+    let onSelect: (TimeZoneOption) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var filteredOptions: [TimeZoneOption] {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty { return options }
+        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return options.filter { option in
+            let candidates = [
+                option.title,
+                option.identifier,
+                option.displayName
+            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
+            return candidates.contains { $0.contains(normalizedQuery) }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if filteredOptions.isEmpty {
+                    Text("一致するタイムゾーンがありません。他の言語で入力してみてください。")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredOptions) { option in
+                        Button {
+                            onSelect(option)
+                            dismiss()
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(option.title)
+                                    .foregroundStyle(.primary)
+                                Text(option.identifier)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("タイムゾーンを検索")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "都市名・国名・識別子で検索"
+            )
         }
     }
 }
@@ -517,6 +589,10 @@ private struct TimeZoneOption: Identifiable {
     }
 
     var displayName: String {
+        "\(title)\n識別子: \(identifier)"
+    }
+
+    var title: String {
         let name: String
 
         if let location = locationName {
@@ -532,361 +608,99 @@ private struct TimeZoneOption: Identifiable {
     }
 
     private var utcOffsetString: String {
-        let secondsFromGMT = timeZone.secondsFromGMT(
+        let seconds = timeZone.secondsFromGMT(
             for: Date()
         )
 
-        let sign = secondsFromGMT >= 0 ? "+" : "-"
-        let absoluteSeconds = abs(secondsFromGMT)
+        let sign = seconds >= 0 ? "+" : "-"
+        let absoluteSeconds = abs(seconds)
         let hours = absoluteSeconds / 3600
         let minutes = (absoluteSeconds % 3600) / 60
 
         return "\(sign)\(String(format: "%02d:%02d", hours, minutes))"
     }
 
-    private var locationName: (country: String, city: String)? {
-        switch identifier {
-        case "Asia/Tokyo", "Japan":
-            return ("日本", "東京")
-
-        case "Europe/London":
-            return ("イギリス", "ロンドン")
-
-        case "America/New_York":
-            return ("アメリカ", "ニューヨーク")
-
-        case "America/Chicago":
-            return ("アメリカ", "シカゴ")
-
-        case "America/Denver":
-            return ("アメリカ", "デンバー")
-
-        case "America/Los_Angeles":
-            return ("アメリカ", "ロサンゼルス")
-
-        case "America/Anchorage":
-            return ("アメリカ", "アンカレッジ")
-
-        case "Pacific/Honolulu":
-            return ("アメリカ", "ホノルル")
-
-        case "Europe/Paris":
-            return ("フランス", "パリ")
-
-        case "Europe/Berlin":
-            return ("ドイツ", "ベルリン")
-
-        case "Europe/Rome":
-            return ("イタリア", "ローマ")
-
-        case "Europe/Madrid":
-            return ("スペイン", "マドリード")
-
-        case "Asia/Seoul":
-            return ("韓国", "ソウル")
-
-        case "Asia/Shanghai", "Asia/Chongqing", "Asia/Harbin":
-            return ("中国", "上海")
-
-        case "Asia/Hong_Kong":
-            return ("香港", "香港")
-
-        case "Asia/Singapore":
-            return ("シンガポール", "シンガポール")
-
-        case "Australia/Sydney":
-            return ("オーストラリア", "シドニー")
-
-        case "Australia/Melbourne":
-            return ("オーストラリア", "メルボルン")
-
-        case "Australia/Brisbane":
-            return ("オーストラリア", "ブリスベン")
-
-        case "Australia/Adelaide":
-            return ("オーストラリア", "アデレード")
-
-        case "Australia/Perth":
-            return ("オーストラリア", "パース")
-
-        case "Australia/Darwin":
-            return ("オーストラリア", "ダーウィン")
-
-        case "Australia/Hobart":
-            return ("オーストラリア", "ホバート")
-
-        case "Pacific/Auckland":
-            return ("ニュージーランド", "オークランド")
-
-        case "Asia/Dubai":
-            return ("アラブ首長国連邦", "ドバイ")
-
-        case "Asia/Kolkata", "Asia/Calcutta":
-            return ("インド", "コルカタ")
-
-        case "America/Toronto":
-            return ("カナダ", "トロント")
-
-        case "America/Vancouver":
-            return ("カナダ", "バンクーバー")
-
-        case "America/Edmonton":
-            return ("カナダ", "エドモントン")
-
-        case "America/Winnipeg":
-            return ("カナダ", "ウィニペグ")
-
-        case "America/Halifax":
-            return ("カナダ", "ハリファックス")
-
-        case "America/St_Johns":
-            return ("カナダ", "セントジョンズ")
-
-        case "America/Sao_Paulo":
-            return ("ブラジル", "サンパウロ")
-
-        case "Asia/Amman":
-            return ("ヨルダン", "アンマン")
-
-        case "Europe/Vienna":
-            return ("オーストリア", "ウィーン")
-
-        case "Europe/Brussels":
-            return ("ベルギー", "ブリュッセル")
-
-        case "Asia/Bahrain":
-            return ("バーレーン", "バーレーン")
-
-        case "Africa/Cairo":
-            return ("エジプト", "カイロ")
-
-        case "Europe/Prague":
-            return ("チェコ", "プラハ")
-
-        case "Europe/Copenhagen":
-            return ("デンマーク", "コペンハーゲン")
-
-        case "Atlantic/Faroe":
-            return ("フェロー諸島", "フェロー諸島")
-
-        case "Europe/Guernsey":
-            return ("ガーンジー", "ガーンジー")
-
-        case "Europe/Gibraltar":
-            return ("ジブラルタル", "ジブラルタル")
-
-        case "America/Port-au-Prince":
-            return ("ハイチ", "ポルトープランス")
-
-        case "Europe/Budapest":
-            return ("ハンガリー", "ブダペスト")
-
-        case "Atlantic/Reykjavik":
-            return ("アイスランド", "レイキャヴィーク")
-
-        case "Europe/Jersey":
-            return ("ジャージー", "ジャージー")
-
-        case "Africa/Nairobi":
-            return ("ケニア", "ナイロビ")
-
-        case "Asia/Kuwait":
-            return ("クウェート", "クウェート")
-
-        case "Europe/Vaduz":
-            return ("リヒテンシュタイン", "ファドゥーツ")
-
-        case "Europe/Luxembourg":
-            return ("ルクセンブルク", "ルクセンブルク")
-
-        case "Europe/Monaco":
-            return ("モナコ", "モナコ")
-
-        case "Africa/Lagos":
-            return ("ナイジェリア", "ラゴス")
-
-        case "Europe/Oslo":
-            return ("ノルウェー", "オスロ")
-
-        case "Pacific/Nauru":
-            return ("ナウル", "ナウル")
-
-        case "Asia/Muscat":
-            return ("オマーン", "マスカット")
-
-        case "Pacific/Port_Moresby":
-            return ("パプアニューギニア", "ポートモレスビー")
-
-        case "Europe/Warsaw":
-            return ("ポーランド", "ワルシャワ")
-
-        case "Europe/Lisbon":
-            return ("ポルトガル", "リスボン")
-
-        case "Asia/Qatar":
-            return ("カタール", "カタール")
-
-        case "Europe/Moscow":
-            return ("ロシア", "モスクワ")
-
-        case "Asia/Riyadh":
-            return ("サウジアラビア", "リヤド")
-
-        case "Pacific/Guadalcanal":
-            return ("ソロモン諸島", "ホニアラ")
-
-        case "Europe/Stockholm":
-            return ("スウェーデン", "ストックホルム")
-
-        case "Europe/San_Marino":
-            return ("サンマリノ", "サンマリノ")
-
-        case "Europe/Istanbul":
-            return ("トルコ", "イスタンブール")
-
-        case "Europe/Kyiv":
-            return ("ウクライナ", "キーウ")
-
-        case "Europe/Vatican":
-            return ("バチカン", "バチカン")
-
-        case "Africa/Johannesburg":
-            return ("南アフリカ", "ヨハネスブルグ")
-
-        case "America/Mexico_City":
-            return ("メキシコ", "メキシコシティ")
-
-        case "America/Cancun":
-            return ("メキシコ", "カンクン")
-
-        case "America/Chihuahua":
-            return ("メキシコ", "チワワ")
-
-        case "America/Hermosillo":
-            return ("メキシコ", "エルモシージョ")
-
-        case "America/Mazatlan":
-            return ("メキシコ", "マサトラン")
-
-        case "America/Tijuana":
-            return ("メキシコ", "ティファナ")
-
-        default:
-            return genericLocationName
-        }
-    }
-
-    private var genericLocationName: (
+    private var locationName: (
         country: String,
         city: String
     )? {
-        let components = identifier.split(separator: "/")
-
-        guard components.count >= 2 else {
-            return nil
-        }
-
-        let area = String(components[0])
-        let cityIdentifier = components
-            .dropFirst()
-            .joined(separator: "/")
-
-        return (
-            countryName(for: area),
-            cityName(for: cityIdentifier)
-        )
+        Self.locationNames[identifier]
     }
 
-    private func countryName(for area: String) -> String {
-        switch area {
-        case "Africa":
-            return "アフリカ"
-
-        case "America":
-            return "アメリカ"
-
-        case "Antarctica":
-            return "南極"
-
-        case "Arctic":
-            return "北極"
-
-        case "Asia":
-            return "アジア"
-
-        case "Atlantic":
-            return "大西洋"
-
-        case "Australia":
-            return "オーストラリア"
-
-        case "Europe":
-            return "ヨーロッパ"
-
-        case "Indian":
-            return "インド洋"
-
-        case "Pacific":
-            return "太平洋"
-
-        default:
-            return area
-        }
-    }
-
-    private func cityName(for cityIdentifier: String) -> String {
-        let city = cityIdentifier
-            .split(separator: "/")
-            .last
-            .map(String.init) ?? cityIdentifier
-
-        let japaneseCityNames: [String: String] = [
-            "Tokyo": "東京",
-            "London": "ロンドン",
-            "New_York": "ニューヨーク",
-            "Los_Angeles": "ロサンゼルス",
-            "Chicago": "シカゴ",
-            "Denver": "デンバー",
-            "Anchorage": "アンカレッジ",
-            "Honolulu": "ホノルル",
-            "Paris": "パリ",
-            "Berlin": "ベルリン",
-            "Rome": "ローマ",
-            "Madrid": "マドリード",
-            "Seoul": "ソウル",
-            "Shanghai": "上海",
-            "Hong_Kong": "香港",
-            "Singapore": "シンガポール",
-            "Sydney": "シドニー",
-            "Melbourne": "メルボルン",
-            "Brisbane": "ブリスベン",
-            "Adelaide": "アデレード",
-            "Perth": "パース",
-            "Darwin": "ダーウィン",
-            "Hobart": "ホバート",
-            "Auckland": "オークランド",
-            "Dubai": "ドバイ",
-            "Kolkata": "コルカタ",
-            "Calcutta": "コルカタ",
-            "Toronto": "トロント",
-            "Vancouver": "バンクーバー",
-            "Edmonton": "エドモントン",
-            "Winnipeg": "ウィニペグ",
-            "Halifax": "ハリファックス",
-            "Sao_Paulo": "サンパウロ",
-            "Amman": "アンマン",
-            "Mexico_City": "メキシコシティ",
-            "Moscow": "モスクワ",
-            "Cairo": "カイロ",
-            "Johannesburg": "ヨハネスブルグ"
-        ]
-
-        return japaneseCityNames[city]
-            ?? city.replacingOccurrences(
-                of: "_",
-                with: " "
-            )
-    }
+    private static let locationNames: [
+        String: (country: String, city: String)
+    ] = [
+        "Asia/Tokyo": ("日本", "東京"),
+        "Europe/London": ("イギリス", "ロンドン"),
+        "America/New_York": ("アメリカ", "ニューヨーク"),
+        "America/Chicago": ("アメリカ", "シカゴ"),
+        "America/Denver": ("アメリカ", "デンバー"),
+        "America/Los_Angeles": ("アメリカ", "ロサンゼルス"),
+        "America/Anchorage": ("アメリカ", "アンカレッジ"),
+        "Pacific/Honolulu": ("アメリカ", "ホノルル"),
+        "Europe/Paris": ("フランス", "パリ"),
+        "Europe/Berlin": ("ドイツ", "ベルリン"),
+        "Europe/Rome": ("イタリア", "ローマ"),
+        "Europe/Madrid": ("スペイン", "マドリード"),
+        "Asia/Seoul": ("韓国", "ソウル"),
+        "Asia/Shanghai": ("中国", "上海"),
+        "Asia/Hong_Kong": ("香港", "香港"),
+        "Asia/Singapore": ("シンガポール", "シンガポール"),
+        "Australia/Sydney": ("オーストラリア", "シドニー"),
+        "Australia/Melbourne": ("オーストラリア", "メルボルン"),
+        "Australia/Brisbane": ("オーストラリア", "ブリスベン"),
+        "Australia/Adelaide": ("オーストラリア", "アデレード"),
+        "Australia/Perth": ("オーストラリア", "パース"),
+        "Australia/Darwin": ("オーストラリア", "ダーウィン"),
+        "Australia/Hobart": ("オーストラリア", "ホバート"),
+        "Pacific/Auckland": ("ニュージーランド", "オークランド"),
+        "Asia/Dubai": ("アラブ首長国連邦", "ドバイ"),
+        "Asia/Kolkata": ("インド", "コルカタ"),
+        "America/Toronto": ("カナダ", "トロント"),
+        "America/Vancouver": ("カナダ", "バンクーバー"),
+        "America/Edmonton": ("カナダ", "エドモントン"),
+        "America/Winnipeg": ("カナダ", "ウィニペグ"),
+        "America/Halifax": ("カナダ", "ハリファックス"),
+        "America/St_Johns": ("カナダ", "セントジョンズ"),
+        "America/Sao_Paulo": ("ブラジル", "サンパウロ"),
+        "Asia/Amman": ("ヨルダン", "アンマン"),
+        "Europe/Vienna": ("オーストリア", "ウィーン"),
+        "Europe/Brussels": ("ベルギー", "ブリュッセル"),
+        "Africa/Cairo": ("エジプト", "カイロ"),
+        "Europe/Prague": ("チェコ", "プラハ"),
+        "Europe/Copenhagen": ("デンマーク", "コペンハーゲン"),
+        "America/Port-au-Prince": ("ハイチ", "ポルトープランス"),
+        "Europe/Budapest": ("ハンガリー", "ブダペスト"),
+        "Atlantic/Reykjavik": ("アイスランド", "レイキャヴィーク"),
+        "Africa/Nairobi": ("ケニア", "ナイロビ"),
+        "Asia/Kuwait": ("クウェート", "クウェート"),
+        "Europe/Vaduz": ("リヒテンシュタイン", "ファドゥーツ"),
+        "Europe/Luxembourg": ("ルクセンブルク", "ルクセンブルク"),
+        "Europe/Monaco": ("モナコ", "モナコ"),
+        "Africa/Lagos": ("ナイジェリア", "ラゴス"),
+        "Europe/Oslo": ("ノルウェー", "オスロ"),
+        "Pacific/Nauru": ("ナウル", "ナウル"),
+        "Asia/Muscat": ("オマーン", "マスカット"),
+        "Pacific/Port_Moresby": ("パプアニューギニア", "ポートモレスビー"),
+        "Europe/Warsaw": ("ポーランド", "ワルシャワ"),
+        "Europe/Lisbon": ("ポルトガル", "リスボン"),
+        "Asia/Qatar": ("カタール", "カタール"),
+        "Europe/Moscow": ("ロシア", "モスクワ"),
+        "Asia/Riyadh": ("サウジアラビア", "リヤド"),
+        "Pacific/Guadalcanal": ("ソロモン諸島", "ホニアラ"),
+        "Europe/Stockholm": ("スウェーデン", "ストックホルム"),
+        "Europe/San_Marino": ("サンマリノ", "サンマリノ"),
+        "Europe/Istanbul": ("トルコ", "イスタンブール"),
+        "Europe/Kyiv": ("ウクライナ", "キーウ"),
+        "Europe/Vatican": ("バチカン", "バチカン"),
+        "Africa/Johannesburg": ("南アフリカ", "ヨハネスブルグ"),
+        "America/Mexico_City": ("メキシコ", "メキシコシティ"),
+        "America/Cancun": ("メキシコ", "カンクン"),
+        "America/Chihuahua": ("メキシコ", "チワワ"),
+        "America/Hermosillo": ("メキシコ", "エルモシージョ"),
+        "America/Mazatlan": ("メキシコ", "マサトラン"),
+        "America/Tijuana": ("メキシコ", "ティフアナ")
+    ]
 
     private var fallbackDisplayName: String {
         identifier
@@ -909,7 +723,9 @@ struct SettingsView_Previews: PreviewProvider {
             tickVolume: .constant(0.8),
             showOuterRing: .constant(true),
             timeZone: .constant(.current),
-            gpsSyncEnabled: .constant(true)
+            gpsSyncEnabled: .constant(true),
+            designSettings: ClockDesignSettings()
         ) {}
     }
 }
+

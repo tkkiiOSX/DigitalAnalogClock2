@@ -17,7 +17,7 @@ struct DesignClockPreview: View {
             let radius = size * 0.43
 
             ZStack {
-                previewBackground
+                previewBackground(size: size)
 
                 previewFrame(size: size)
 
@@ -70,14 +70,32 @@ struct DesignClockPreview: View {
     }
 
     @ViewBuilder
-    var previewBackground: some View {
+    private func previewBackground(size: CGFloat) -> some View {
         if let image = settings.backgroundImage {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
                 .clipped()
+                .mask(innerMask(size: size))
         } else {
             settings.backgroundColor
+        }
+    }
+
+    @ViewBuilder
+    private func innerMask(size: CGFloat) -> some View {
+        // Match the visible inner edge of the stroked frame:
+        // frame uses: lineWidth = size*0.07, padding = size*0.035
+        let lineWidth = size * 0.07
+        let padding = size * 0.035
+        let inset = padding + lineWidth / 2
+        switch settings.frameStyle {
+        case .circle:
+            Circle().padding(inset)
+        case .rectangle:
+            Rectangle().padding(inset)
+        case .roundedRectangle:
+            RoundedRectangle(cornerRadius: max(0, size * 0.12 - inset)).padding(inset)
         }
     }
 
@@ -112,3 +130,4 @@ struct DesignClockPreview: View {
         }
     }
 }
+

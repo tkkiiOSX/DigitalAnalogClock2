@@ -148,11 +148,33 @@ struct DesignSettingsView: View {
                         keepLabelsUpright: keepLabelsUpright
                     )
                     .frame(width: 260, height: 260)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: 12
-                        )
-                    )
+                    .mask {
+                        GeometryReader { geo in
+                            let size = min(geo.size.width, geo.size.height)
+                            switch settings.frameStyle {
+                            case .circle:
+                                Circle()
+                            case .rectangle:
+                                Rectangle()
+                            case .roundedRectangle:
+                                RoundedRectangle(cornerRadius: max(0, size * 0.12 - size * 0.035 - (size * 0.07) / 2))
+                            }
+                        }
+                    }
+                    .overlay {
+                        GeometryReader { geo in
+                            let size = min(geo.size.width, geo.size.height)
+                            switch settings.frameStyle {
+                            case .circle:
+                                Circle().stroke(.secondary.opacity(0.35), lineWidth: 1)
+                            case .rectangle:
+                                Rectangle().stroke(.secondary.opacity(0.35), lineWidth: 1)
+                            case .roundedRectangle:
+                                RoundedRectangle(cornerRadius: max(0, size * 0.12 - size * 0.035 - (size * 0.07) / 2))
+                                    .stroke(.secondary.opacity(0.35), lineWidth: 1)
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle("時計デザイン")
@@ -180,10 +202,14 @@ struct DesignSettingsView: View {
         do {
             guard let data = try await selectedPhotoItem
                 .loadTransferable(type: Data.self),
-                  let image = UIImage(data: data),
-                  let compressedData = image.jpegData(
-                    compressionQuality: 0.85
-                  ) else {
+                  let image = UIImage(data: data) else {
+                return
+            }
+
+            let squared = squareCropped(image) ?? image
+            guard let compressedData = squared.jpegData(
+                compressionQuality: 0.85
+            ) else {
                 return
             }
 
@@ -193,5 +219,30 @@ struct DesignSettingsView: View {
                 "背景写真の読み込みに失敗しました: \(error)"
             )
         }
+    }
+
+    private func squareCropped(_ image: UIImage) -> UIImage? {
+        let width = image.size.width
+        let height = image.size.height
+        guard width > 0, height > 0 else { return nil }
+
+        let side = min(width, height)
+        let originX = (width - side) / 2.0
+        let originY = (height - side) / 2.0
+
+        let scale = image.scale
+        let cropRect = CGRect(
+            x: originX * scale,
+            y: originY * scale,
+            width: side * scale,
+            height: side * scale
+        ).integral
+
+        guard let cgImage = image.cgImage?.cropping(to: cropRect) else {
+            return nil
+        }
+
+        // Preserve original orientation
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 }
