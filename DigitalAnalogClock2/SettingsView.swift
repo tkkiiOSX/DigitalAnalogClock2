@@ -4,11 +4,14 @@ import PhotosUI
 import UIKit
 
 struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @Binding var keepLabelsUpright: Bool
     @Binding var sweepSecondHand: Bool
     @Binding var tickVolume: Float
     @Binding var showOuterRing: Bool
     @Binding var timeZone: TimeZone
+    @Binding var followSystemTimeZone: Bool
     @Binding var gpsSyncEnabled: Bool
 
     @ObservedObject var designSettings: ClockDesignSettings
@@ -19,12 +22,13 @@ struct SettingsView: View {
     @State private var showingUnavailableTimeZoneAlert = false
     @State private var regionTimeZoneCandidates: [TimeZoneOption] = []
     @State private var showingDesignSettings = false
-    @State private var timeZonePickerSearchText: String = ""
     @State private var showingTimeZoneSearch = false
-    @State private var timeZoneSearchText: String = ""
+    @State private var timeZoneSearchText = ""
 
-    private var timeZoneOptions: [TimeZoneOption] {
-        TimeZone.knownTimeZoneIdentifiers
+    private static let timeZoneOptions: [TimeZoneOption] = {
+        let referenceDate = Date()
+
+        return TimeZone.knownTimeZoneIdentifiers
             .compactMap { identifier in
                 guard let timeZone = TimeZone(identifier: identifier) else {
                     return nil
@@ -32,7 +36,8 @@ struct SettingsView: View {
 
                 return TimeZoneOption(
                     identifier: identifier,
-                    timeZone: timeZone
+                    timeZone: timeZone,
+                    referenceDate: referenceDate
                 )
             }
             .sorted {
@@ -46,146 +51,54 @@ struct SettingsView: View {
 
                 return nameComparison == .orderedAscending
             }
-    }
-    private var filteredTimeZoneOptions: [TimeZoneOption] {
-        let q = timeZonePickerSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return timeZoneOptions }
-        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return timeZoneOptions.filter { option in
-            let candidates = [
-                option.title,
-                option.identifier,
-                option.displayName
-            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
-            return candidates.contains { $0.contains(normalizedQuery) }
-        }
-    }
+    }()
+
+    private static let timeZoneOptionsByIdentifier: [String: TimeZoneOption] =
+        Dictionary(
+            uniqueKeysWithValues: timeZoneOptions.map {
+                ($0.identifier, $0)
+            }
+        )
+
     private var currentTimeZoneTitle: String {
-        timeZoneOptions.first(where: { $0.identifier == timeZone.identifier })?.title ?? timeZone.identifier
+        Self.timeZoneOptionsByIdentifier[timeZone.identifier]?.title
+            ?? timeZone.identifier
+    }
+
+    private var followSystemTimeZoneBinding: Binding<Bool> {
+        Binding(
+            get: {
+                followSystemTimeZone
+            },
+            set: { enabled in
+                setFollowSystemTimeZone(enabled)
+            }
+        )
+    }
+
+    private var manualFixedTimeZoneBinding: Binding<Bool> {
+        Binding(
+            get: {
+                !followSystemTimeZone
+            },
+            set: { enabled in
+                setFollowSystemTimeZone(!enabled)
+            }
+        )
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section(header: Text("時計デザイン")) {
-                    Button {
-                        showingDesignSettings = true
-                    } label: {
-                        VStack(
-                            alignment: .leading,
-                            spacing: 10
-                        ) {
-                            DesignClockPreview(
-                                settings: designSettings,
-                                keepLabelsUpright: keepLabelsUpright
-                            )
-                            .frame(width: 220, height: 220)
-                            .mask {
-                                GeometryReader { geo in
-                                    let size = min(geo.size.width, geo.size.height)
-                                    switch designSettings.frameStyle {
-                                    case .circle:
-                                        Circle()
-                                    case .rectangle:
-                                        Rectangle()
-                                    case .roundedRectangle:
-                                        RoundedRectangle(cornerRadius: size * 0.12)
-                                    }
-                                }
-                            }
-                            .overlay {
-                                GeometryReader { geo in
-                                    let size = min(geo.size.width, geo.size.height)
-                                    switch designSettings.frameStyle {
-                                    case .circle:
-                                        Circle().stroke(.secondary.opacity(0.35), lineWidth: 1)
-                                    case .rectangle:
-                                        Rectangle().stroke(.secondary.opacity(0.35), lineWidth: 1)
-                                    case .roundedRectangle:
-                                        RoundedRectangle(cornerRadius: size * 0.12)
-                                            .stroke(.secondary.opacity(0.35), lineWidth: 1)
-                                    }
-                                }
-                            }
-
-                            HStack {
-                                Text("時計外観を変更")
-                                    .foregroundStyle(.primary)
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Section(header: Text("位置情報")) {
-                    Toggle(
-                        "GPSロケーションに同期",
-                        isOn: $gpsSyncEnabled
-                    )
-
-                    Text(
-                        "現在地に合わせてタイムゾーンを自動更新します"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
-
-                Section(header: Text("タイムゾーン")) {
-                    NavigationLink {
-                        TimeZoneSelectionView(
-                            options: timeZoneOptions,
-                            selectedIdentifier: timeZone.identifier
-                        ) { option in
-                            selectRegionTimeZone(option)
-                        }
-                    } label: {
-                        HStack {
-                            Text("タイムゾーン")
-                            Spacer()
-                            Text(currentTimeZoneTitle)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Text(
-                        "同じUTC時差でも、地域ごとに夏時間や過去の時差変更が異なる場合があります。"
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                    Button {
-                        applyRegionTimeZone()
-                    } label: {
-                        Label(
-                            "言語と地域の地域を反映",
-                            systemImage: "globe"
-                        )
-                    }
-                    Button {
-                        prefillAndOpenSearchFromRegion()
-                    } label: {
-                        Label(
-                            "言語と地域の地域の設定から探す",
-                            systemImage: "magnifyingglass"
-                        )
-                    }
-                    .font(.footnote)
-                }
+                clockDesignSection
+                timeZoneSection
             }
             .navigationTitle("設定")
-        }
-        .toolbar {
-            ToolbarItem(
-                placement: .navigationBarTrailing
-            ) {
-                Button("完了") {
-                    onOK()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完了") {
+                        closeSettings()
+                    }
                 }
             }
         }
@@ -223,13 +136,173 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingTimeZoneSearch) {
             TimeZoneSearchView(
-                options: timeZoneOptions,
+                options: Self.timeZoneOptions,
                 searchText: $timeZoneSearchText
             ) { option in
                 selectRegionTimeZone(option)
                 showingTimeZoneSearch = false
             }
         }
+    }
+
+    private var clockDesignSection: some View {
+        Section(header: Text("時計デザイン")) {
+            Button {
+                showingDesignSettings = true
+            } label: {
+                VStack(
+                    alignment: .leading,
+                    spacing: 10
+                ) {
+                    DesignClockPreview(
+                        settings: designSettings,
+                        keepLabelsUpright: keepLabelsUpright
+                    )
+                    .frame(width: 220, height: 220)
+                    .mask {
+                        GeometryReader { geo in
+                            let size = min(
+                                geo.size.width,
+                                geo.size.height
+                            )
+
+                            switch designSettings.frameStyle {
+                            case .circle:
+                                Circle()
+
+                            case .rectangle:
+                                Rectangle()
+
+                            case .roundedRectangle:
+                                RoundedRectangle(
+                                    cornerRadius: size * 0.12
+                                )
+                            }
+                        }
+                    }
+                    .overlay {
+                        GeometryReader { geo in
+                            let size = min(
+                                geo.size.width,
+                                geo.size.height
+                            )
+
+                            switch designSettings.frameStyle {
+                            case .circle:
+                                Circle()
+                                    .stroke(
+                                        .secondary.opacity(0.35),
+                                        lineWidth: 1
+                                    )
+
+                            case .rectangle:
+                                Rectangle()
+                                    .stroke(
+                                        .secondary.opacity(0.35),
+                                        lineWidth: 1
+                                    )
+
+                            case .roundedRectangle:
+                                RoundedRectangle(
+                                    cornerRadius: size * 0.12
+                                )
+                                .stroke(
+                                    .secondary.opacity(0.35),
+                                    lineWidth: 1
+                                )
+                            }
+                        }
+                    }
+
+                    HStack {
+                        Text("時計外観を変更")
+                            .foregroundStyle(.primary)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var timeZoneSection: some View {
+        Section(header: Text("タイムゾーン")) {
+            Toggle(
+                "現在地のタイムゾーンに追従する",
+                isOn: followSystemTimeZoneBinding
+            )
+
+            Toggle(
+                "タイムゾーンを手動固定",
+                isOn: manualFixedTimeZoneBinding
+            )
+
+            Text(
+                followSystemTimeZone
+                    ? "現在地からタイムゾーンを取得して自動で追従します。Simulatorの位置変更もこの設定で反映します。"
+                    : "選択したタイムゾーンに固定します。現在地が変わっても変更されません。"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            NavigationLink {
+                TimeZoneSelectionView(
+                    options: Self.timeZoneOptions,
+                    selectedIdentifier: timeZone.identifier
+                ) { option in
+                    selectRegionTimeZone(option)
+                }
+            } label: {
+                HStack {
+                    Text("タイムゾーン")
+
+                    Spacer()
+
+                    Text(currentTimeZoneTitle)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Text(
+                "同じUTC時差でも、地域ごとに夏時間や過去の時差変更が異なる場合があります。"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            Button {
+                applyRegionTimeZone()
+            } label: {
+                Label(
+                    "言語と地域の地域を反映",
+                    systemImage: "globe"
+                )
+            }
+
+            Button {
+                prefillAndOpenSearchFromRegion()
+            } label: {
+                Label(
+                    "言語と地域の地域の設定から探す",
+                    systemImage: "magnifyingglass"
+                )
+            }
+            .font(.footnote)
+        }
+    }
+
+    private func closeSettings() {
+        onOK()
+        dismiss()
+    }
+
+    private func setFollowSystemTimeZone(_ enabled: Bool) {
+        followSystemTimeZone = enabled
+        gpsSyncEnabled = enabled
     }
 
     private func applyRegionTimeZone() {
@@ -255,22 +328,22 @@ struct SettingsView: View {
             showingMultipleTimeZones = true
         }
     }
+
     private func prefillAndOpenSearchFromRegion() {
         if let code = Locale.current.regionCode {
-            let name = Locale.current.localizedString(forRegionCode: code) ?? code
-            timeZoneSearchText = name
+            timeZoneSearchText = Locale.current.localizedString(
+                forRegionCode: code
+            ) ?? code
         } else {
             timeZoneSearchText = ""
         }
+
         showingTimeZoneSearch = true
     }
 
     private func selectRegionTimeZone(_ option: TimeZoneOption) {
-        guard option.identifier != timeZone.identifier else {
-            return
-        }
-
         gpsSyncEnabled = false
+        followSystemTimeZone = false
         timeZone = option.timeZone
     }
 
@@ -278,15 +351,8 @@ struct SettingsView: View {
         for regionCode: String
     ) -> [TimeZoneOption] {
         regionCodeToTimeZoneIDs(regionCode.uppercased())
-            .compactMap { identifier in
-                guard let timeZone = TimeZone(identifier: identifier) else {
-                    return nil
-                }
-
-                return TimeZoneOption(
-                    identifier: identifier,
-                    timeZone: timeZone
-                )
+            .compactMap {
+                Self.timeZoneOptionsByIdentifier[$0]
             }
     }
 
@@ -472,20 +538,13 @@ private struct TimeZoneSelectionView: View {
     let onSelect: (TimeZoneOption) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var searchText: String = ""
+    @State private var searchText = ""
 
     private var filteredOptions: [TimeZoneOption] {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if q.isEmpty { return options }
-        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return options.filter { option in
-            let candidates = [
-                option.title,
-                option.identifier,
-                option.displayName
-            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
-            return candidates.contains { $0.contains(normalizedQuery) }
-        }
+        TimeZoneOption.filtered(
+            options,
+            searchText: searchText
+        )
     }
 
     var body: some View {
@@ -495,20 +554,10 @@ private struct TimeZoneSelectionView: View {
                     onSelect(option)
                     dismiss()
                 } label: {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(option.title)
-                                .foregroundStyle(.primary)
-                            Text(option.identifier)
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 8)
-                        if option.identifier == selectedIdentifier {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.tint)
-                        }
-                    }
+                    TimeZoneOptionRow(
+                        option: option,
+                        isSelected: option.identifier == selectedIdentifier
+                    )
                 }
             }
         }
@@ -529,17 +578,10 @@ private struct TimeZoneSearchView: View {
     @Environment(\.dismiss) private var dismiss
 
     private var filteredOptions: [TimeZoneOption] {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if q.isEmpty { return options }
-        let normalizedQuery = q.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-        return options.filter { option in
-            let candidates = [
-                option.title,
-                option.identifier,
-                option.displayName
-            ].map { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) }
-            return candidates.contains { $0.contains(normalizedQuery) }
-        }
+        TimeZoneOption.filtered(
+            options,
+            searchText: searchText
+        )
     }
 
     var body: some View {
@@ -554,13 +596,10 @@ private struct TimeZoneSearchView: View {
                             onSelect(option)
                             dismiss()
                         } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(option.title)
-                                    .foregroundStyle(.primary)
-                                Text(option.identifier)
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            }
+                            TimeZoneOptionRow(
+                                option: option,
+                                isSelected: false
+                            )
                         }
                     }
                 }
@@ -568,7 +607,9 @@ private struct TimeZoneSearchView: View {
             .navigationTitle("タイムゾーンを検索")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }
+                    Button("閉じる") {
+                        dismiss()
+                    }
                 }
             }
             .searchable(
@@ -580,36 +621,109 @@ private struct TimeZoneSearchView: View {
     }
 }
 
-private struct TimeZoneOption: Identifiable {
+private struct TimeZoneOptionRow: View {
+    let option: TimeZoneOption
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(option.title)
+                    .foregroundStyle(.primary)
+
+                Text(option.identifier)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.tint)
+            }
+        }
+    }
+}
+
+private struct TimeZoneOption: Identifiable, Hashable {
     let identifier: String
     let timeZone: TimeZone
+    let title: String
+    let displayName: String
+    let normalizedSearchText: String
 
     var id: String {
         identifier
     }
 
-    var displayName: String {
-        "\(title)\n識別子: \(identifier)"
+    init(
+        identifier: String,
+        timeZone: TimeZone,
+        referenceDate: Date
+    ) {
+        self.identifier = identifier
+        self.timeZone = timeZone
+
+        let title = Self.makeTitle(
+            identifier: identifier,
+            timeZone: timeZone,
+            referenceDate: referenceDate
+        )
+
+        self.title = title
+        self.displayName = "\(title)\n識別子: \(identifier)"
+        self.normalizedSearchText = [
+            title,
+            identifier,
+            self.displayName
+        ]
+        .joined(separator: " ")
+        .normalizedForTimeZoneSearch
     }
 
-    var title: String {
+    static func filtered(
+        _ options: [TimeZoneOption],
+        searchText: String
+    ) -> [TimeZoneOption] {
+        let query = searchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .normalizedForTimeZoneSearch
+
+        guard !query.isEmpty else {
+            return options
+        }
+
+        return options.filter {
+            $0.normalizedSearchText.contains(query)
+        }
+    }
+
+    private static func makeTitle(
+        identifier: String,
+        timeZone: TimeZone,
+        referenceDate: Date
+    ) -> String {
         let name: String
 
-        if let location = locationName {
+        if let location = locationNames[identifier] {
             name = "\(location.country)／\(location.city)"
         } else {
             name = timeZone.localizedName(
                 for: .generic,
                 locale: Locale(identifier: "ja_JP")
-            ) ?? fallbackDisplayName
+            ) ?? fallbackDisplayName(for: identifier)
         }
 
-        return "\(name)（UTC\(utcOffsetString)）"
+        return "\(name)（UTC\(utcOffsetString(for: timeZone, referenceDate: referenceDate))）"
     }
 
-    private var utcOffsetString: String {
+    private static func utcOffsetString(
+        for timeZone: TimeZone,
+        referenceDate: Date
+    ) -> String {
         let seconds = timeZone.secondsFromGMT(
-            for: Date()
+            for: referenceDate
         )
 
         let sign = seconds >= 0 ? "+" : "-"
@@ -620,11 +734,18 @@ private struct TimeZoneOption: Identifiable {
         return "\(sign)\(String(format: "%02d:%02d", hours, minutes))"
     }
 
-    private var locationName: (
-        country: String,
-        city: String
-    )? {
-        Self.locationNames[identifier]
+    private static func fallbackDisplayName(
+        for identifier: String
+    ) -> String {
+        identifier
+            .replacingOccurrences(
+                of: "_",
+                with: " "
+            )
+            .replacingOccurrences(
+                of: "/",
+                with: "／"
+            )
     }
 
     private static let locationNames: [
@@ -701,17 +822,17 @@ private struct TimeZoneOption: Identifiable {
         "America/Mazatlan": ("メキシコ", "マサトラン"),
         "America/Tijuana": ("メキシコ", "ティフアナ")
     ]
+}
 
-    private var fallbackDisplayName: String {
-        identifier
-            .replacingOccurrences(
-                of: "_",
-                with: " "
-            )
-            .replacingOccurrences(
-                of: "/",
-                with: "／"
-            )
+private extension String {
+    var normalizedForTimeZoneSearch: String {
+        folding(
+            options: [
+                .diacriticInsensitive,
+                .caseInsensitive
+            ],
+            locale: Locale(identifier: "ja_JP")
+        )
     }
 }
 
@@ -723,9 +844,9 @@ struct SettingsView_Previews: PreviewProvider {
             tickVolume: .constant(0.8),
             showOuterRing: .constant(true),
             timeZone: .constant(.current),
-            gpsSyncEnabled: .constant(true),
+            followSystemTimeZone: .constant(false),
+            gpsSyncEnabled: .constant(false),
             designSettings: ClockDesignSettings()
         ) {}
     }
 }
-

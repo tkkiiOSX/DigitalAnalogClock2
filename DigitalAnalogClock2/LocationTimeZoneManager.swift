@@ -10,6 +10,8 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
 
     private var lastGeocodedLocation: CLLocation?
     private var lastGeocodedDate: Date?
+    private var isEnabled = false
+    private var forceNextGeocode = false
 
     private let minimumUpdateInterval: TimeInterval = 15 * 60
     private let minimumDistance: CLLocationDistance = 10_000
@@ -20,11 +22,13 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
         locationManager.distanceFilter = minimumDistance
-        locationManager.activityType = .automotiveNavigation
-        locationManager.pausesLocationUpdatesAutomatically = true
+        locationManager.activityType = .other
+        locationManager.pausesLocationUpdatesAutomatically = false
     }
 
     func setEnabled(_ enabled: Bool) {
+        isEnabled = enabled
+
         if enabled {
             start()
         } else {
@@ -33,29 +37,16 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
     }
 
     func refresh() {
-        guard CLLocationManager.locationServicesEnabled() else {
+        guard isEnabled else {
             return
         }
 
-        switch locationManager.authorizationStatus {
-        case .notDetermined:
-            locationManager.requestWhenInUseAuthorization()
-
-        case .authorizedWhenInUse, .authorizedAlways:
-            locationManager.requestLocation()
-
-        case .denied, .restricted:
-            break
-
-        @unknown default:
-            break
-        }
-    }
-
-    private func start() {
         guard CLLocationManager.locationServicesEnabled() else {
+            print("位置情報サービスが無効です")
             return
         }
+
+        forceNextGeocode = true
 
         switch locationManager.authorizationStatus {
         case .notDetermined:
@@ -66,7 +57,29 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
             locationManager.requestLocation()
 
         case .denied, .restricted:
+            print("位置情報の使用が許可されていません")
+
+        @unknown default:
             break
+        }
+    }
+
+    private func start() {
+        guard CLLocationManager.locationServicesEnabled() else {
+            print("位置情報サービスが無効です")
+            return
+        }
+
+        switch locationManager.authorizationStatus {
+        case .notDetermined:
+            locationManager.requestWhenInUseAuthorization()
+
+        case .authorizedWhenInUse, .authorizedAlways:
+            locationManager.startUpdatingLocation()
+            refresh()
+
+        case .denied, .restricted:
+            print("位置情報の使用が許可されていません")
 
         @unknown default:
             break
@@ -74,11 +87,16 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
     }
 
     private func stop() {
+        forceNextGeocode = false
         locationManager.stopUpdatingLocation()
         geocoder.cancelGeocode()
     }
 
     private func shouldGeocode(location: CLLocation) -> Bool {
+        if forceNextGeocode {
+            return true
+        }
+
         guard let lastGeocodedLocation,
               let lastGeocodedDate else {
             return true
@@ -92,22 +110,43 @@ final class LocationTimeZoneManager: NSObject, ObservableObject {
     }
 
     private func updateTimeZone(from location: CLLocation) {
+        guard isEnabled else {
+            return
+        }
+
         guard shouldGeocode(location: location) else {
             return
         }
 
+        forceNextGeocode = false
         geocoder.cancelGeocode()
 
+        print("位置情報からタイムゾーンを取得します: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+
         geocoder.reverseGeocodeLocation(location) { [weak self] placemarks, error in
-            guard let self,
-                  error == nil,
-                  let timeZone = placemarks?.first?.timeZone else {
+            guard let self else {
+                return
+            }
+
+            if let error {
+                print("逆ジオコードに失敗しました: \(error)")
+                return
+            }
+
+            guard let timeZone = placemarks?.first?.timeZone else {
+                print("現在地からタイムゾーンを取得できませんでした")
                 return
             }
 
             DispatchQueue.main.async {
+                guard self.isEnabled else {
+                    return
+                }
+
                 self.lastGeocodedLocation = location
                 self.lastGeocodedDate = Date()
+
+                print("取得したタイムゾーン: \(timeZone.identifier)")
 
                 if self.timeZone?.identifier != timeZone.identifier {
                     self.timeZone = timeZone
@@ -121,10 +160,17 @@ extension LocationTimeZoneManager: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(
         _ manager: CLLocationManager
     ) {
+        guard isEnabled else {
+            return
+        }
+
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
-            manager.requestLocation()
+            refresh()
+
+        case .denied, .restricted:
+            print("位置情報の使用が許可されていません")
 
         default:
             break
@@ -146,7 +192,6 @@ extension LocationTimeZoneManager: CLLocationManagerDelegate {
         _ manager: CLLocationManager,
         didFailWithError error: Error
     ) {
-        // GPSが一時的に取得できない場合は、
-        // 次回の位置情報更新またはアプリ復帰時に再試行します。
+        print("位置情報の取得に失敗しました: \(error)")
     }
 }

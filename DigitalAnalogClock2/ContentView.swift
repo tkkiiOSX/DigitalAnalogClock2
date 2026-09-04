@@ -32,8 +32,22 @@ struct ContentView: View {
     @AppStorage("timeZoneIdentifier")
     private var timeZoneIdentifier = TimeZone.current.identifier
 
+    // 名前は既存互換のため残しますが、意味は「現在地のタイムゾーンに追従」です
+    @AppStorage("followSystemTimeZone")
+    private var followSystemTimeZone = false
+
     @AppStorage("gpsSyncEnabled")
-    private var gpsSyncEnabled = true
+    private var gpsSyncEnabled = false
+
+    @AppStorage("hourlyChimeEnabled")
+    private var hourlyChimeEnabled = false
+
+    // AppStorageはFloatに対応していないためDoubleを使用する
+    @AppStorage("hourlyChimeVolume")
+    private var hourlyChimeVolume: Double = 1.0
+
+    @AppStorage("hourlyChimeIntervalMinutes")
+    private var hourlyChimeIntervalMinutes = 60
 
     @StateObject private var designSettings =
         ClockDesignSettings()
@@ -42,8 +56,17 @@ struct ContentView: View {
         LocationTimeZoneManager()
 
     @State private var tickPlayer: AVAudioPlayer?
+    @State private var hourlyChimePlayer: AVAudioPlayer?
+
     @State private var lastSecondPlayed = -1
     @State private var audioIsPrepared = false
+    @State private var hourlyChimeAudioIsPrepared = false
+
+    // 同じ時報タイミングを複数回鳴らさないための記録
+    @State private var lastChimeTargetStart: Date?
+
+    // jihou.mp3は3秒目が0秒なので、対象時刻の3秒前から再生する
+    private let hourlyChimeLeadTimeSeconds: TimeInterval = 3
 
     private let timer = Timer.publish(
         every: 1 / 30,
@@ -51,8 +74,32 @@ struct ContentView: View {
         in: .common
     ).autoconnect()
 
+    private var allowedChimeIntervalMinutes: [Int] {
+        [
+            1,
+            30,
+            60,
+            360,
+            720,
+            1440
+        ]
+    }
+
+    private var normalizedChimeIntervalMinutes: Int {
+        if allowedChimeIntervalMinutes.contains(hourlyChimeIntervalMinutes) {
+            return hourlyChimeIntervalMinutes
+        }
+
+        return 60
+    }
+
     private var timeZone: TimeZone {
-        TimeZone(identifier: timeZoneIdentifier)
+        if followSystemTimeZone,
+           let locationTimeZone = locationTimeZoneManager.timeZone {
+            return locationTimeZone
+        }
+
+        return TimeZone(identifier: timeZoneIdentifier)
             ?? .current
     }
 
@@ -71,40 +118,132 @@ struct ContentView: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .padding()
-        .onAppear {
-            prepareAudioPlayer()
-            locationTimeZoneManager.setEnabled(gpsSyncEnabled)
+        .onReceive(timer) { newDate in
+            handleTimer(newDate)
         }
-        .onChange(of: gpsSyncEnabled) { _, enabled in
+        .onAppear {
+            print("ContentView.onAppear が呼ばれました")
+            prepareAudioPlayers()
+            configureLocationTimeZoneTracking()
+        }
+        .onChange(of: followSystemTimeZone) { _, enabled in
+            gpsSyncEnabled = enabled
             locationTimeZoneManager.setEnabled(enabled)
 
             if enabled {
                 locationTimeZoneManager.refresh()
             }
         }
+        .onChange(of: gpsSyncEnabled) { _, enabled in
+            if enabled {
+                followSystemTimeZone = true
+                locationTimeZoneManager.setEnabled(true)
+                locationTimeZoneManager.refresh()
+            } else if !followSystemTimeZone {
+                locationTimeZoneManager.setEnabled(false)
+            }
+        }
         .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
-            guard gpsSyncEnabled,
+            guard followSystemTimeZone,
                   let newTimeZone else {
                 return
             }
 
             timeZoneIdentifier = newTimeZone.identifier
+            lastChimeTargetStart = nil
+        }
+        .onChange(of: hourlyChimeEnabled) { _, enabled in
+            lastChimeTargetStart = nil
+
+            if enabled {
+                prepareHourlyChimePlayer()
+                print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
+            } else {
+                hourlyChimePlayer?.stop()
+                hourlyChimePlayer?.currentTime = 0
+                print("時報がOFFになりました")
+            }
+        }
+        .onChange(of: hourlyChimeVolume) { _, volume in
+            hourlyChimePlayer?.volume = Float(volume)
+            print("時報音量を変更しました: \(String(format: "%.2f", volume))")
+        }
+        .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
+            lastChimeTargetStart = nil
+            print("時報タイミングを変更しました: \(newValue)分")
         }
         .onChange(of: scenePhase) { _, phase in
+            print("scenePhase が変更されました: \(phase)")
+
             guard phase == .active else {
                 return
             }
 
-            prepareAudioPlayer()
+            prepareAudioPlayers()
+            lastChimeTargetStart = nil
 
-            if gpsSyncEnabled {
+            if followSystemTimeZone {
+                gpsSyncEnabled = true
+                locationTimeZoneManager.setEnabled(true)
                 locationTimeZoneManager.refresh()
+            } else {
+                gpsSyncEnabled = false
+                locationTimeZoneManager.setEnabled(false)
             }
         }
     }
 
+    private func configureLocationTimeZoneTracking() {
+        gpsSyncEnabled = followSystemTimeZone
+        locationTimeZoneManager.setEnabled(followSystemTimeZone)
+
+        if followSystemTimeZone {
+            locationTimeZoneManager.refresh()
+        }
+    }
+
+    private func prepareAudioPlayers() {
+        print("音声プレイヤー準備処理を開始します")
+        printBundleMP3Files()
+
+        prepareAudioPlayer()
+        prepareHourlyChimePlayer()
+    }
+
+    private func printBundleMP3Files() {
+        let mp3FileNames = Bundle.main.urls(
+            forResourcesWithExtension: "mp3",
+            subdirectory: nil
+        )?
+        .map {
+            $0.lastPathComponent
+        }
+        .sorted() ?? []
+
+        if mp3FileNames.isEmpty {
+            print("Bundle内のmp3ファイル: なし")
+        } else {
+            print("Bundle内のmp3ファイル: \(mp3FileNames.joined(separator: ", "))")
+        }
+    }
+
+    private func configureAudioSession() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+
+        try audioSession.setCategory(
+            .playback,
+            mode: .default,
+            options: [
+                .mixWithOthers
+            ]
+        )
+
+        try audioSession.setActive(true)
+    }
+
     private func prepareAudioPlayer() {
         guard !audioIsPrepared else {
+            tickPlayer?.volume = Float(tickVolume)
             return
         }
 
@@ -117,15 +256,7 @@ struct ContentView: View {
         }
 
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-
-            try audioSession.setCategory(
-                .playback,
-                mode: .default,
-                options: [.mixWithOthers]
-            )
-
-            try audioSession.setActive(true)
+            try configureAudioSession()
 
             let player = try AVAudioPlayer(
                 contentsOf: soundURL
@@ -147,6 +278,49 @@ struct ContentView: View {
         }
     }
 
+    private func prepareHourlyChimePlayer() {
+        guard !hourlyChimeAudioIsPrepared else {
+            hourlyChimePlayer?.volume = Float(hourlyChimeVolume)
+            print("jihou.mp3は既に準備済みです")
+            return
+        }
+
+        print("jihou.mp3の準備を開始します")
+
+        guard let soundURL = Bundle.main.url(
+            forResource: "jihou",
+            withExtension: "mp3"
+        ) else {
+            print("jihou.mp3がアプリのBundleに見つかりません")
+            print("ファイル名が jihou.mp3 か、Target Membership / Copy Bundle Resources を確認してください")
+            return
+        }
+
+        do {
+            try configureAudioSession()
+
+            let player = try AVAudioPlayer(
+                contentsOf: soundURL
+            )
+
+            player.volume = Float(hourlyChimeVolume)
+            player.numberOfLoops = 0
+            player.prepareToPlay()
+
+            hourlyChimePlayer = player
+            hourlyChimeAudioIsPrepared = true
+
+            print("jihou.mp3の準備が完了しました")
+            print("jihou.mp3 duration: \(String(format: "%.2f", player.duration))秒")
+            print("jihou.mp3 volume: \(String(format: "%.2f", hourlyChimeVolume))")
+        } catch {
+            hourlyChimePlayer = nil
+            hourlyChimeAudioIsPrepared = false
+
+            print("jihou.mp3の準備に失敗しました: \(error)")
+        }
+    }
+
     private func playTickSound() {
         if !audioIsPrepared || tickPlayer == nil {
             prepareAudioPlayer()
@@ -165,6 +339,40 @@ struct ContentView: View {
 
         if !didPlay {
             print("CLOCK01.mp3の再生に失敗しました")
+        }
+    }
+
+    private func playHourlyChimeSound(
+        elapsedFromIdealStart: TimeInterval
+    ) {
+        if !hourlyChimeAudioIsPrepared || hourlyChimePlayer == nil {
+            prepareHourlyChimePlayer()
+        }
+
+        guard let hourlyChimePlayer else {
+            print("再生できる時報プレイヤーがありません")
+            return
+        }
+
+        hourlyChimePlayer.stop()
+        hourlyChimePlayer.volume = Float(hourlyChimeVolume)
+
+        // 本来の開始時刻より少し遅れた場合は、その分だけ再生位置を進める
+        hourlyChimePlayer.currentTime = min(
+            max(0, elapsedFromIdealStart),
+            hourlyChimePlayer.duration
+        )
+
+        hourlyChimePlayer.prepareToPlay()
+
+        let didPlay = hourlyChimePlayer.play()
+
+        if didPlay {
+            print(
+                "jihou.mp3を時報再生しました。再生位置: \(String(format: "%.2f", hourlyChimePlayer.currentTime))秒 音量: \(String(format: "%.2f", hourlyChimeVolume))"
+            )
+        } else {
+            print("jihou.mp3の時報再生に失敗しました")
         }
     }
 
@@ -198,9 +406,6 @@ struct ContentView: View {
         )
         .sheet(isPresented: $showSettings) {
             settingsView
-        }
-        .onReceive(timer) { newDate in
-            handleTimer(newDate)
         }
     }
 
@@ -271,13 +476,19 @@ struct ContentView: View {
         // Match the visible inner edge of the stroked frame in outerRing():
         let lineWidth = size * 0.03
         let inset = lineWidth / 2
+
         switch designSettings.frameStyle {
         case .circle:
-            Circle().inset(by: inset)
+            Circle()
+                .inset(by: inset)
+
         case .rectangle:
-            Rectangle().inset(by: inset)
+            Rectangle()
+                .inset(by: inset)
+
         case .roundedRectangle:
-            RoundedRectangle(cornerRadius: size * 0.12).inset(by: inset)
+            RoundedRectangle(cornerRadius: size * 0.12)
+                .inset(by: inset)
         }
     }
 
@@ -427,6 +638,7 @@ struct ContentView: View {
                     timeZoneIdentifier = newTimeZone.identifier
                 }
             ),
+            followSystemTimeZone: $followSystemTimeZone,
             gpsSyncEnabled: $gpsSyncEnabled,
             designSettings: designSettings
         ) {
@@ -436,6 +648,7 @@ struct ContentView: View {
 
     private func handleTimer(_ newDate: Date) {
         currentDate = newDate
+        handleChime(newDate)
 
         guard !sweepSecondHand else {
             lastSecondPlayed = -1
@@ -453,6 +666,71 @@ struct ContentView: View {
 
         playTickSound()
         lastSecondPlayed = currentSecond
+    }
+
+    private func handleChime(_ newDate: Date) {
+        guard hourlyChimeEnabled else {
+            return
+        }
+
+        guard hourlyChimeVolume > 0 else {
+            return
+        }
+
+        guard let nextTargetStart = nextChimeTargetStart(
+            after: newDate
+        ) else {
+            return
+        }
+
+        let secondsUntilTarget = nextTargetStart.timeIntervalSince(
+            newDate
+        )
+
+        // 対象時刻の3秒前から、対象時刻直前までの間に1回だけ再生する
+        guard secondsUntilTarget > 0,
+              secondsUntilTarget <= hourlyChimeLeadTimeSeconds else {
+            return
+        }
+
+        guard lastChimeTargetStart != nextTargetStart else {
+            return
+        }
+
+        let elapsedFromIdealStart =
+            hourlyChimeLeadTimeSeconds - secondsUntilTarget
+
+        print(
+            "時報再生条件成立: 間隔 \(normalizedChimeIntervalMinutes)分 / 対象0秒まで \(String(format: "%.2f", secondsUntilTarget))秒 / 再生位置補正 \(String(format: "%.2f", elapsedFromIdealStart))秒"
+        )
+
+        playHourlyChimeSound(
+            elapsedFromIdealStart: elapsedFromIdealStart
+        )
+
+        lastChimeTargetStart = nextTargetStart
+    }
+
+    private func nextChimeTargetStart(after date: Date) -> Date? {
+        guard let startOfDay = calendar.startOfDay(
+            for: date
+        ) as Date? else {
+            return nil
+        }
+
+        let intervalMinutes = normalizedChimeIntervalMinutes
+        let intervalSeconds = TimeInterval(intervalMinutes * 60)
+        let elapsedSeconds = date.timeIntervalSince(startOfDay)
+
+        let currentSlot = floor(elapsedSeconds / intervalSeconds)
+        let nextSlot = currentSlot + 1
+        let nextElapsedSeconds = nextSlot * intervalSeconds
+
+        return calendar.date(
+            byAdding: .second,
+            value: Int(nextElapsedSeconds),
+            to: startOfDay
+        )
     }
 
     private var calendar: Calendar {
