@@ -162,6 +162,8 @@ struct DesignSettingsView: View {
                                 .tag(style)
                         }
                     }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: .infinity)
 
                     ColorPicker(
                         "枠の色",

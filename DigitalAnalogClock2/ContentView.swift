@@ -9,12 +9,24 @@ import SwiftUI
 import Combine
 import AVFoundation
 import UIKit
+import CoreMotion
+
+@MainActor
+final class ClockInstance: ObservableObject, Identifiable {
+    let id = UUID()
+    @Published var timeZoneIdentifier: String
+    @Published var designSettings: ClockDesignSettings
+    @Published var showSettings: Bool = false
+    init(timeZoneIdentifier: String, designSettings: ClockDesignSettings? = nil) {
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.designSettings = designSettings ?? ClockDesignSettings()
+    }
+}
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var currentDate = Date()
-    @State private var showSettings = false
 
     @AppStorage("keepLabelsUpright")
     private var keepLabelsUpright = false
@@ -28,9 +40,6 @@ struct ContentView: View {
 
     @AppStorage("showOuterRing")
     private var showOuterRing = true
-
-    @AppStorage("timeZoneIdentifier")
-    private var timeZoneIdentifier = TimeZone.current.identifier
 
     // 名前は既存互換のため残しますが、意味は「現在地のタイムゾーンに追従」です
     @AppStorage("followSystemTimeZone")
@@ -49,8 +58,8 @@ struct ContentView: View {
     @AppStorage("hourlyChimeIntervalMinutes")
     private var hourlyChimeIntervalMinutes = 60
 
-    @StateObject private var designSettings =
-        ClockDesignSettings()
+    @AppStorage("gyroEnabled") private var gyroEnabled = false
+    @StateObject private var gyroManager = GyroManager()
 
     @StateObject private var locationTimeZoneManager =
         LocationTimeZoneManager()
@@ -93,102 +102,220 @@ struct ContentView: View {
         return 60
     }
 
-    private var timeZone: TimeZone {
-        if followSystemTimeZone,
-           let locationTimeZone = locationTimeZoneManager.timeZone {
-            return locationTimeZone
-        }
-
-        return TimeZone(identifier: timeZoneIdentifier)
-            ?? .current
-    }
+    @State private var clocks: [ClockInstance] = [ClockInstance(timeZoneIdentifier: TimeZone.current.identifier)]
 
     var body: some View {
         GeometryReader { geometry in
-            let size = min(
-                geometry.size.width,
-                geometry.size.height
-            )
-
-            clockContainer(size: size)
-                .frame(
-                    width: geometry.size.width,
-                    height: geometry.size.height
-                )
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .padding()
-        .onReceive(timer) { newDate in
-            handleTimer(newDate)
-        }
-        .onAppear {
-            print("ContentView.onAppear が呼ばれました")
-            prepareAudioPlayers()
-            configureLocationTimeZoneTracking()
-        }
-        .onChange(of: followSystemTimeZone) { _, enabled in
-            gpsSyncEnabled = enabled
-            locationTimeZoneManager.setEnabled(enabled)
-
-            if enabled {
-                locationTimeZoneManager.refresh()
+            let isPortrait = geometry.size.height > geometry.size.width
+            VStack {
+                Button(action: {
+                    clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
+                }) {
+                    Label("時計を追加", systemImage: "plus")
+                        .font(.headline)
+                        .padding(8)
+                }
+                if isPortrait {
+                    if clocks.count <= 2 {
+                        VStack(spacing: 24) {
+                            ForEach(clocks) { clock in
+                                GeometryReader { geo in
+                                    let size = min(geo.size.width, geo.size.height)
+                                    let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
+                                    clockContainer(
+                                        size: size,
+                                        timeZone: tz,
+                                        designSettings: clock.designSettings,
+                                        showSettings: Binding(
+                                            get: {
+                                                clock.showSettings
+                                            },
+                                            set: { value in
+                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                    clocks[idx].showSettings = value
+                                                }
+                                            }
+                                        ),
+                                        onSettings: {
+                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                clocks[idx].showSettings = true
+                                            }
+                                        },
+                                        onUpdateTimeZone: { newTimeZone in
+                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                            }
+                                        }
+                                    )
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                                }
+                                .aspectRatio(1, contentMode: .fit)
+                                .padding()
+                            }
+                        }
+                    } else {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(spacing: 24) {
+                                ForEach(clocks) { clock in
+                                    GeometryReader { geo in
+                                        let size = min(geo.size.width, geo.size.height)
+                                        let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
+                                        clockContainer(
+                                            size: size,
+                                            timeZone: tz,
+                                            designSettings: clock.designSettings,
+                                            showSettings: Binding(
+                                                get: {
+                                                    clock.showSettings
+                                                },
+                                                set: { value in
+                                                    if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                        clocks[idx].showSettings = value
+                                                    }
+                                                }
+                                            ),
+                                            onSettings: {
+                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                    clocks[idx].showSettings = true
+                                                }
+                                            },
+                                            onUpdateTimeZone: { newTimeZone in
+                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                    clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                                }
+                                            }
+                                        )
+                                        .frame(width: geo.size.width, height: geo.size.height)
+                                        .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                                    }
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .padding()
+                                }
+                            }
+                            .padding(.bottom)
+                        }
+                    }
+                } else {
+                    // 横向きや通常時は旧来の横並び
+                    ScrollView([.vertical, .horizontal], showsIndicators: false) {
+                        HStack(spacing: 24) {
+                            ForEach(clocks) { clock in
+                                GeometryReader { geo in
+                                    let size = min(geo.size.width, geo.size.height)
+                                    let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
+                                    clockContainer(
+                                        size: size,
+                                        timeZone: tz,
+                                        designSettings: clock.designSettings,
+                                        showSettings: Binding(
+                                            get: {
+                                                clock.showSettings
+                                            },
+                                            set: { value in
+                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                    clocks[idx].showSettings = value
+                                                }
+                                            }
+                                        ),
+                                        onSettings: {
+                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                clocks[idx].showSettings = true
+                                            }
+                                        },
+                                        onUpdateTimeZone: { newTimeZone in
+                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                            }
+                                        }
+                                    )
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                                }
+                                .aspectRatio(1, contentMode: .fit)
+                                .padding()
+                            }
+                        }
+                    }
+                }
             }
-        }
-        .onChange(of: gpsSyncEnabled) { _, enabled in
-            if enabled {
-                followSystemTimeZone = true
-                locationTimeZoneManager.setEnabled(true)
-                locationTimeZoneManager.refresh()
-            } else if !followSystemTimeZone {
-                locationTimeZoneManager.setEnabled(false)
+            .padding()
+            .onReceive(timer) { newDate in
+                handleTimer(newDate)
             }
-        }
-        .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
-            guard followSystemTimeZone,
-                  let newTimeZone else {
-                return
+            .onAppear {
+                print("ContentView.onAppear が呼ばれました")
+                prepareAudioPlayers()
+                configureLocationTimeZoneTracking()
+                if gyroEnabled {
+                    gyroManager.start()
+                }
             }
-
-            timeZoneIdentifier = newTimeZone.identifier
-            lastChimeTargetStart = nil
-        }
-        .onChange(of: hourlyChimeEnabled) { _, enabled in
-            lastChimeTargetStart = nil
-
-            if enabled {
-                prepareHourlyChimePlayer()
-                print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
-            } else {
-                hourlyChimePlayer?.stop()
-                hourlyChimePlayer?.currentTime = 0
-                print("時報がOFFになりました")
+            .onDisappear {
+                if gyroEnabled {
+                    gyroManager.stop()
+                }
             }
-        }
-        .onChange(of: hourlyChimeVolume) { _, volume in
-            hourlyChimePlayer?.volume = Float(volume)
-            print("時報音量を変更しました: \(String(format: "%.2f", volume))")
-        }
-        .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
-            lastChimeTargetStart = nil
-            print("時報タイミングを変更しました: \(newValue)分")
-        }
-        .onChange(of: scenePhase) { _, phase in
-            print("scenePhase が変更されました: \(phase)")
-
-            guard phase == .active else {
-                return
+            .onChange(of: followSystemTimeZone) { _, enabled in
+                gpsSyncEnabled = enabled
+                locationTimeZoneManager.setEnabled(enabled)
+                if enabled {
+                    locationTimeZoneManager.refresh()
+                }
             }
-
-            prepareAudioPlayers()
-            lastChimeTargetStart = nil
-
-            if followSystemTimeZone {
-                gpsSyncEnabled = true
-                locationTimeZoneManager.setEnabled(true)
-                locationTimeZoneManager.refresh()
-            } else {
-                gpsSyncEnabled = false
-                locationTimeZoneManager.setEnabled(false)
+            .onChange(of: gpsSyncEnabled) { _, enabled in
+                if enabled {
+                    followSystemTimeZone = true
+                    locationTimeZoneManager.setEnabled(true)
+                    locationTimeZoneManager.refresh()
+                } else if !followSystemTimeZone {
+                    locationTimeZoneManager.setEnabled(false)
+                }
+            }
+            .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
+                guard followSystemTimeZone,
+                      let newTimeZone else {
+                    return
+                }
+                if clocks.indices.contains(0) {
+                    clocks[0].timeZoneIdentifier = newTimeZone.identifier
+                }
+                lastChimeTargetStart = nil
+            }
+            .onChange(of: hourlyChimeEnabled) { _, enabled in
+                lastChimeTargetStart = nil
+                if enabled {
+                    prepareHourlyChimePlayer()
+                    print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
+                } else {
+                    hourlyChimePlayer?.stop()
+                    hourlyChimePlayer?.currentTime = 0
+                    print("時報がOFFになりました")
+                }
+            }
+            .onChange(of: hourlyChimeVolume) { _, volume in
+                hourlyChimePlayer?.volume = Float(hourlyChimeVolume)
+                print("時報音量を変更しました: \(String(format: "%.2f", volume))")
+            }
+            .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
+                lastChimeTargetStart = nil
+                print("時報タイミングを変更しました: \(newValue)分")
+            }
+            .onChange(of: scenePhase) { _, phase in
+                print("scenePhase が変更されました: \(phase)")
+                guard phase == .active else {
+                    return
+                }
+                prepareAudioPlayers()
+                lastChimeTargetStart = nil
+                if followSystemTimeZone {
+                    gpsSyncEnabled = true
+                    locationTimeZoneManager.setEnabled(true)
+                    locationTimeZoneManager.refresh()
+                } else {
+                    gpsSyncEnabled = false
+                    locationTimeZoneManager.setEnabled(false)
+                }
             }
         }
     }
@@ -376,7 +503,14 @@ struct ContentView: View {
         }
     }
 
-    private func clockContainer(size: CGFloat) -> some View {
+    private func clockContainer(
+        size: CGFloat,
+        timeZone: TimeZone,
+        designSettings: ClockDesignSettings,
+        showSettings: Binding<Bool>,
+        onSettings: @escaping () -> Void,
+        onUpdateTimeZone: @escaping (TimeZone) -> Void
+    ) -> some View {
         let clockRadius = size * 0.45
         let secondHandWidth = size * 0.04
         let hourHandWidth = size * 0.09
@@ -385,27 +519,36 @@ struct ContentView: View {
             size: size,
             clockRadius: clockRadius,
             secondHandWidth: secondHandWidth,
-            hourHandWidth: hourHandWidth
+            hourHandWidth: hourHandWidth,
+            timeZone: timeZone,
+            designSettings: designSettings
         )
         .overlay(alignment: .bottomTrailing) {
-            timeZoneLabel(size: size)
+            timeZoneLabel(size: size, timeZone: timeZone)
         }
         .overlay(alignment: .topTrailing) {
-            settingsButton(size: size)
+            settingsButton(size: size, onSettings: onSettings)
         }
         .background {
             ZStack {
                 // Base background behind the clock (outside the frame remains visible)
                 designSettings.backgroundColor
                 // Photo only fills the inner face of the frame (outside stays transparent to base)
-                clockFaceBackgroundMasked(size: size)
+                clockFaceBackgroundMasked(size: size, designSettings: designSettings)
             }
         }
         .clipShape(
             RoundedRectangle(cornerRadius: size * 0.02)
         )
-        .sheet(isPresented: $showSettings) {
-            settingsView
+        .sheet(isPresented: showSettings) {
+            settingsView(
+                designSettings: designSettings,
+                onUpdateTimeZone: onUpdateTimeZone,
+                currentTimeZone: timeZone,
+                dismiss: {
+                    showSettings.wrappedValue = false
+                }
+            )
         }
     }
 
@@ -413,40 +556,42 @@ struct ContentView: View {
         size: CGFloat,
         clockRadius: CGFloat,
         secondHandWidth: CGFloat,
-        hourHandWidth: CGFloat
+        hourHandWidth: CGFloat,
+        timeZone: TimeZone,
+        designSettings: ClockDesignSettings
     ) -> some View {
         ZStack {
-            outerRing(size: size)
+            outerRing(size: size, designSettings: designSettings)
 
             ClockHand(
-                angle: hourAngle,
+                angle: hourAngle(timeZone: timeZone),
                 length: clockRadius * 0.55,
                 color: designSettings.hourHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
-                label: hourString,
+                label: hourString(timeZone: timeZone),
                 labelColor: designSettings.hourHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
 
             ClockHand(
-                angle: minuteAngle,
+                angle: minuteAngle(timeZone: timeZone),
                 length: clockRadius * 0.80,
                 color: designSettings.minuteHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
-                label: minuteString,
+                label: minuteString(timeZone: timeZone),
                 labelColor: designSettings.minuteHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
 
             ClockHand(
-                angle: secondAngle,
+                angle: secondAngle(timeZone: timeZone),
                 length: clockRadius * 0.92,
                 color: designSettings.secondHandColor,
                 minWidth: secondHandWidth,
                 maxWidth: hourHandWidth,
-                label: secondString,
+                label: secondString(timeZone: timeZone),
                 labelColor: designSettings.secondHandColor,
                 keepLabelsUpright: keepLabelsUpright
             )
@@ -460,19 +605,19 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func clockFaceBackgroundMasked(size: CGFloat) -> some View {
+    private func clockFaceBackgroundMasked(size: CGFloat, designSettings: ClockDesignSettings) -> some View {
         if let image = designSettings.backgroundImage {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
                 .frame(width: size, height: size)
                 .clipped()
-                .mask(innerMask(size: size))
+                .mask(innerMask(size: size, designSettings: designSettings))
         }
     }
 
     @ViewBuilder
-    private func innerMask(size: CGFloat) -> some View {
+    private func innerMask(size: CGFloat, designSettings: ClockDesignSettings) -> some View {
         // Match the visible inner edge of the stroked frame in outerRing():
         let lineWidth = size * 0.03
         let inset = lineWidth / 2
@@ -493,7 +638,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func outerRing(size: CGFloat) -> some View {
+    private func outerRing(size: CGFloat, designSettings: ClockDesignSettings) -> some View {
         if showOuterRing {
             let lineWidth = size * 0.03
             let insetAmount = lineWidth / 2
@@ -553,8 +698,8 @@ struct ContentView: View {
             .shadow(radius: 2)
     }
 
-    private func timeZoneLabel(size: CGFloat) -> some View {
-        Text(timeZoneDisplayName)
+    private func timeZoneLabel(size: CGFloat, timeZone: TimeZone) -> some View {
+        Text(timeZoneDisplayName(timeZone: timeZone))
             .font(
                 .system(
                     size: max(11, size * 0.035),
@@ -571,9 +716,9 @@ struct ContentView: View {
             .padding(8)
     }
 
-    private func settingsButton(size: CGFloat) -> some View {
+    private func settingsButton(size: CGFloat, onSettings: @escaping () -> Void) -> some View {
         Button {
-            showSettings = true
+            onSettings()
         } label: {
             Image(systemName: "gearshape.fill")
                 .font(
@@ -592,7 +737,12 @@ struct ContentView: View {
         .padding(8)
     }
 
-    private var settingsView: some View {
+    private func settingsView(
+        designSettings: ClockDesignSettings,
+        onUpdateTimeZone: @escaping (TimeZone) -> Void,
+        currentTimeZone: TimeZone,
+        dismiss: @escaping () -> Void
+    ) -> some View {
         SettingsView(
             keepLabelsUpright: Binding(
                 get: {
@@ -632,17 +782,17 @@ struct ContentView: View {
             ),
             timeZone: Binding(
                 get: {
-                    timeZone
+                    currentTimeZone
                 },
                 set: { newTimeZone in
-                    timeZoneIdentifier = newTimeZone.identifier
+                    onUpdateTimeZone(newTimeZone)
                 }
             ),
             followSystemTimeZone: $followSystemTimeZone,
             gpsSyncEnabled: $gpsSyncEnabled,
             designSettings: designSettings
         ) {
-            showSettings = false
+            dismiss()
         }
     }
 
@@ -655,7 +805,7 @@ struct ContentView: View {
             return
         }
 
-        let currentSecond = calendar.component(
+        let currentSecond = calendar(timeZone: clocks.firstTimeZone()).component(
             .second,
             from: newDate
         )
@@ -712,7 +862,7 @@ struct ContentView: View {
     }
 
     private func nextChimeTargetStart(after date: Date) -> Date? {
-        guard let startOfDay = calendar.startOfDay(
+        guard let startOfDay = calendar(timeZone: clocks.firstTimeZone()).startOfDay(
             for: date
         ) as Date? else {
             return nil
@@ -726,73 +876,73 @@ struct ContentView: View {
         let nextSlot = currentSlot + 1
         let nextElapsedSeconds = nextSlot * intervalSeconds
 
-        return calendar.date(
+        return calendar(timeZone: clocks.firstTimeZone()).date(
             byAdding: .second,
             value: Int(nextElapsedSeconds),
             to: startOfDay
         )
     }
 
-    private var calendar: Calendar {
+    private func calendar(timeZone: TimeZone) -> Calendar {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         return calendar
     }
 
     private var hour: Int {
-        calendar.component(
+        calendar(timeZone: clocks.firstTimeZone()).component(
             .hour,
             from: currentDate
         )
     }
 
     private var minute: Int {
-        calendar.component(
+        calendar(timeZone: clocks.firstTimeZone()).component(
             .minute,
             from: currentDate
         )
     }
 
     private var second: Int {
-        calendar.component(
+        calendar(timeZone: clocks.firstTimeZone()).component(
             .second,
             from: currentDate
         )
     }
 
     private var nanosecond: Int {
-        calendar.component(
+        calendar(timeZone: clocks.firstTimeZone()).component(
             .nanosecond,
             from: currentDate
         )
     }
 
-    private var hourAngle: Angle {
-        let hourValue = Double(hour % 12)
-            + Double(minute) / 60
+    private func hourAngle(timeZone: TimeZone) -> Angle {
+        let hourValue = Double(hour(timeZone: timeZone) % 12)
+            + Double(minute(timeZone: timeZone)) / 60
 
         return Angle.degrees(
             (hourValue / 12) * 360
         )
     }
 
-    private var minuteAngle: Angle {
-        let minuteValue = Double(minute)
-            + Double(second) / 60
+    private func minuteAngle(timeZone: TimeZone) -> Angle {
+        let minuteValue = Double(minute(timeZone: timeZone))
+            + Double(second(timeZone: timeZone)) / 60
 
         return Angle.degrees(
             (minuteValue / 60) * 360
         )
     }
 
-    private var secondAngle: Angle {
+    private func secondAngle(timeZone: TimeZone) -> Angle {
         let secondValue: Double
 
         if sweepSecondHand {
-            secondValue = Double(second)
-                + Double(nanosecond) / 1_000_000_000
+            secondValue = Double(second(timeZone: timeZone))
+                + Double(nanosecond(timeZone: timeZone)) / 1_000_000_000
         } else {
-            secondValue = Double(second)
+            secondValue = Double(second(timeZone: timeZone))
         }
 
         return Angle.degrees(
@@ -800,19 +950,19 @@ struct ContentView: View {
         )
     }
 
-    private var hourString: String {
-        String(format: "%d", hour)
+    private func hourString(timeZone: TimeZone) -> String {
+        String(format: "%d", hour(timeZone: timeZone))
     }
 
-    private var minuteString: String {
-        String(format: "%02d", minute)
+    private func minuteString(timeZone: TimeZone) -> String {
+        String(format: "%02d", minute(timeZone: timeZone))
     }
 
-    private var secondString: String {
-        String(format: "%02d", second)
+    private func secondString(timeZone: TimeZone) -> String {
+        String(format: "%02d", second(timeZone: timeZone))
     }
 
-    private var timeZoneDisplayName: String {
+    private func timeZoneDisplayName(timeZone: TimeZone) -> String {
         switch timeZone.identifier {
         case "Asia/Tokyo", "Japan":
             return "日本／東京"
@@ -855,6 +1005,29 @@ struct ContentView: View {
                     with: "／"
                 )
         }
+    }
+
+    // Helper functions for time components with explicit timeZone parameter
+    private func hour(timeZone: TimeZone) -> Int {
+        calendar(timeZone: timeZone).component(.hour, from: currentDate)
+    }
+    private func minute(timeZone: TimeZone) -> Int {
+        calendar(timeZone: timeZone).component(.minute, from: currentDate)
+    }
+    private func second(timeZone: TimeZone) -> Int {
+        calendar(timeZone: timeZone).component(.second, from: currentDate)
+    }
+    private func nanosecond(timeZone: TimeZone) -> Int {
+        calendar(timeZone: timeZone).component(.nanosecond, from: currentDate)
+    }
+}
+
+private extension Array where Element == ClockInstance {
+    func firstTimeZone() -> TimeZone {
+        if let first = self.first {
+            return TimeZone(identifier: first.timeZoneIdentifier) ?? .current
+        }
+        return .current
     }
 }
 
@@ -923,3 +1096,4 @@ struct ClockHand: View {
 #Preview {
     ContentView()
 }
+

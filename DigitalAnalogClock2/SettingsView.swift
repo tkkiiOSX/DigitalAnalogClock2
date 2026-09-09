@@ -16,6 +16,9 @@ struct SettingsView: View {
 
     @ObservedObject var designSettings: ClockDesignSettings
 
+    @AppStorage("gyroEnabled")
+    private var gyroEnabled = false
+
     var onOK: () -> Void
 
     @State private var showingMultipleTimeZones = false
@@ -92,6 +95,13 @@ struct SettingsView: View {
             Form {
                 clockDesignSection
                 timeZoneSection
+                Section {
+                    Toggle("ジャイロON/OFF (0時=重力上)", isOn: $gyroEnabled)
+                        .accessibilityIdentifier("gyroToggle")
+                        .padding(.vertical, 10)
+                        .font(.headline)
+                        .tint(.blue)
+                }
             }
             .navigationTitle("設定")
             .toolbar {
@@ -231,10 +241,11 @@ struct SettingsView: View {
 
     private var timeZoneSection: some View {
         Section(header: Text("タイムゾーン")) {
-            Toggle(
-                "現在地のタイムゾーンに追従する",
-                isOn: followSystemTimeZoneBinding
-            )
+            // 【廃止】現在地のタイムゾーンに追従するトグル
+            // Toggle(
+            //     "現在地のタイムゾーンに追従する",
+            //     isOn: followSystemTimeZoneBinding
+            // )
 
             Toggle(
                 "タイムゾーンを手動固定",
@@ -274,24 +285,26 @@ struct SettingsView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
 
-            Button {
-                applyRegionTimeZone()
-            } label: {
-                Label(
-                    "言語と地域の地域を反映",
-                    systemImage: "globe"
-                )
-            }
+            // 【廃止】「言語と地域の地域を反映」ボタン
+            // Button {
+            //     applyRegionTimeZone()
+            // } label: {
+            //     Label(
+            //         "言語と地域の地域を反映",
+            //         systemImage: "globe"
+            //     )
+            // }
 
-            Button {
-                prefillAndOpenSearchFromRegion()
-            } label: {
-                Label(
-                    "言語と地域の地域の設定から探す",
-                    systemImage: "magnifyingglass"
-                )
-            }
-            .font(.footnote)
+            // 【廃止】「言語と地域の地域の設定から探す」ボタン
+            // Button {
+            //     prefillAndOpenSearchFromRegion()
+            // } label: {
+            //     Label(
+            //         "言語と地域の地域の設定から探す",
+            //         systemImage: "magnifyingglass"
+            //     )
+            // }
+            // .font(.footnote)
         }
     }
 
