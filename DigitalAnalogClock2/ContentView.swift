@@ -107,15 +107,16 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             let isPortrait = geometry.size.height > geometry.size.width
-            VStack {
-                Button(action: {
-                    clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
-                }) {
-                    Label("時計を追加", systemImage: "plus")
-                        .font(.headline)
-                        .padding(8)
-                }
-                if isPortrait {
+            if isPortrait {
+                VStack {
+                    Button(action: {
+                        clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
+                    }) {
+                        Label("", systemImage: "plus")
+                            .font(.headline)
+                            .padding(8)
+                    }
+                    Spacer(minLength: 6)
                     if clocks.count <= 2 {
                         VStack(spacing: 24) {
                             ForEach(clocks) { clock in
@@ -196,125 +197,222 @@ struct ContentView: View {
                             .padding(.bottom)
                         }
                     }
-                } else {
-                    // 横向きや通常時は旧来の横並び
-                    ScrollView([.vertical, .horizontal], showsIndicators: false) {
-                        HStack(spacing: 24) {
-                            ForEach(clocks) { clock in
-                                GeometryReader { geo in
-                                    let size = min(geo.size.width, geo.size.height)
-                                    let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
-                                    clockContainer(
-                                        size: size,
-                                        timeZone: tz,
-                                        designSettings: clock.designSettings,
-                                        showSettings: Binding(
-                                            get: {
-                                                clock.showSettings
-                                            },
-                                            set: { value in
-                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                    clocks[idx].showSettings = value
-                                                }
-                                            }
-                                        ),
-                                        onSettings: {
-                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                clocks[idx].showSettings = true
-                                            }
-                                        },
-                                        onUpdateTimeZone: { newTimeZone in
-                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                clocks[idx].timeZoneIdentifier = newTimeZone.identifier
-                                            }
-                                        }
-                                    )
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
-                                }
-                                .aspectRatio(1, contentMode: .fit)
-                                .padding()
-                            }
-                        }
+                }
+                .padding()
+                .onReceive(timer) { newDate in
+                    handleTimer(newDate)
+                }
+                .onAppear {
+                    print("ContentView.onAppear が呼ばれました")
+                    prepareAudioPlayers()
+                    configureLocationTimeZoneTracking()
+                    if gyroEnabled {
+                        gyroManager.start()
                     }
                 }
-            }
-            .padding()
-            .onReceive(timer) { newDate in
-                handleTimer(newDate)
-            }
-            .onAppear {
-                print("ContentView.onAppear が呼ばれました")
-                prepareAudioPlayers()
-                configureLocationTimeZoneTracking()
-                if gyroEnabled {
-                    gyroManager.start()
+                .onDisappear {
+                    if gyroEnabled {
+                        gyroManager.stop()
+                    }
                 }
-            }
-            .onDisappear {
-                if gyroEnabled {
-                    gyroManager.stop()
+                .onChange(of: followSystemTimeZone) { _, enabled in
+                    gpsSyncEnabled = enabled
+                    locationTimeZoneManager.setEnabled(enabled)
+                    if enabled {
+                        locationTimeZoneManager.refresh()
+                    }
                 }
-            }
-            .onChange(of: followSystemTimeZone) { _, enabled in
-                gpsSyncEnabled = enabled
-                locationTimeZoneManager.setEnabled(enabled)
-                if enabled {
-                    locationTimeZoneManager.refresh()
+                .onChange(of: gpsSyncEnabled) { _, enabled in
+                    if enabled {
+                        followSystemTimeZone = true
+                        locationTimeZoneManager.setEnabled(true)
+                        locationTimeZoneManager.refresh()
+                    } else if !followSystemTimeZone {
+                        locationTimeZoneManager.setEnabled(false)
+                    }
                 }
-            }
-            .onChange(of: gpsSyncEnabled) { _, enabled in
-                if enabled {
-                    followSystemTimeZone = true
-                    locationTimeZoneManager.setEnabled(true)
-                    locationTimeZoneManager.refresh()
-                } else if !followSystemTimeZone {
-                    locationTimeZoneManager.setEnabled(false)
+                .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
+                    guard followSystemTimeZone,
+                          let newTimeZone else {
+                        return
+                    }
+                    if clocks.indices.contains(0) {
+                        clocks[0].timeZoneIdentifier = newTimeZone.identifier
+                    }
+                    lastChimeTargetStart = nil
                 }
-            }
-            .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
-                guard followSystemTimeZone,
-                      let newTimeZone else {
-                    return
+                .onChange(of: hourlyChimeEnabled) { _, enabled in
+                    lastChimeTargetStart = nil
+                    if enabled {
+                        prepareHourlyChimePlayer()
+                        print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
+                    } else {
+                        hourlyChimePlayer?.stop()
+                        hourlyChimePlayer?.currentTime = 0
+                        print("時報がOFFになりました")
+                    }
                 }
-                if clocks.indices.contains(0) {
-                    clocks[0].timeZoneIdentifier = newTimeZone.identifier
+                .onChange(of: hourlyChimeVolume) { _, volume in
+                    hourlyChimePlayer?.volume = Float(hourlyChimeVolume)
+                    print("時報音量を変更しました: \(String(format: "%.2f", volume))")
                 }
-                lastChimeTargetStart = nil
-            }
-            .onChange(of: hourlyChimeEnabled) { _, enabled in
-                lastChimeTargetStart = nil
-                if enabled {
-                    prepareHourlyChimePlayer()
-                    print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
-                } else {
-                    hourlyChimePlayer?.stop()
-                    hourlyChimePlayer?.currentTime = 0
-                    print("時報がOFFになりました")
+                .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
+                    lastChimeTargetStart = nil
+                    print("時報タイミングを変更しました: \(newValue)分")
                 }
-            }
-            .onChange(of: hourlyChimeVolume) { _, volume in
-                hourlyChimePlayer?.volume = Float(hourlyChimeVolume)
-                print("時報音量を変更しました: \(String(format: "%.2f", volume))")
-            }
-            .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
-                lastChimeTargetStart = nil
-                print("時報タイミングを変更しました: \(newValue)分")
-            }
-            .onChange(of: scenePhase) { _, phase in
-                print("scenePhase が変更されました: \(phase)")
-                guard phase == .active else {
-                    return
+                .onChange(of: scenePhase) { _, phase in
+                    print("scenePhase が変更されました: \(phase)")
+                    guard phase == .active else {
+                        return
+                    }
+                    prepareAudioPlayers()
+                    lastChimeTargetStart = nil
+                    if followSystemTimeZone {
+                        gpsSyncEnabled = true
+                        locationTimeZoneManager.setEnabled(true)
+                        locationTimeZoneManager.refresh()
+                    } else {
+                        gpsSyncEnabled = false
+                        locationTimeZoneManager.setEnabled(false)
+                    }
                 }
-                prepareAudioPlayers()
-                lastChimeTargetStart = nil
-                if followSystemTimeZone {
-                    gpsSyncEnabled = true
-                    locationTimeZoneManager.setEnabled(true)
-                    locationTimeZoneManager.refresh()
-                } else {
-                    gpsSyncEnabled = false
-                    locationTimeZoneManager.setEnabled(false)
+            } else {
+                HStack(alignment: .center, spacing: 0) {
+                    VStack {
+                        Button(action: {
+                            clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
+                        }) {
+                            Label("", systemImage: "plus")
+                                .font(.headline)
+                                .padding(8)
+                        }
+                        Spacer()
+                    }
+                    .frame(width: 90)
+                    Spacer(minLength: 12)
+
+                    let clockCount = clocks.count
+                    let spacing: CGFloat = 24
+                    let availableHeight = geometry.size.height - 32
+                    let clockSize = max(120, availableHeight)
+                    let totalContentWidth = CGFloat(clockCount) * clockSize + CGFloat(clockCount - 1) * spacing
+
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        HStack(spacing: spacing) {
+                            ForEach(clocks) { clock in
+                                clockContainer(
+                                    size: clockSize,
+                                    timeZone: TimeZone(identifier: clock.timeZoneIdentifier) ?? .current,
+                                    designSettings: clock.designSettings,
+                                    showSettings: Binding(
+                                        get: {
+                                            clock.showSettings
+                                        },
+                                        set: { value in
+                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                                clocks[idx].showSettings = value
+                                            }
+                                        }
+                                    ),
+                                    onSettings: {
+                                        if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                            clocks[idx].showSettings = true
+                                        }
+                                    },
+                                    onUpdateTimeZone: { newTimeZone in
+                                        if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                            clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                        }
+                                    }
+                                )
+                                .frame(width: clockSize, height: clockSize)
+                                .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                            }
+                        }
+                        .frame(width: totalContentWidth, height: availableHeight, alignment: .center)
+                        .padding(.vertical, (geometry.size.height - availableHeight) / 2)
+                    }
+                    .frame(height: availableHeight)
+                    .frame(maxHeight: .infinity, alignment: .center)
+                    .padding(.trailing)
+                }
+                .padding(.top)
+                .onReceive(timer) { newDate in
+                    handleTimer(newDate)
+                }
+                .onAppear {
+                    print("ContentView.onAppear が呼ばれました")
+                    prepareAudioPlayers()
+                    configureLocationTimeZoneTracking()
+                    if gyroEnabled {
+                        gyroManager.start()
+                    }
+                }
+                .onDisappear {
+                    if gyroEnabled {
+                        gyroManager.stop()
+                    }
+                }
+                .onChange(of: followSystemTimeZone) { _, enabled in
+                    gpsSyncEnabled = enabled
+                    locationTimeZoneManager.setEnabled(enabled)
+                    if enabled {
+                        locationTimeZoneManager.refresh()
+                    }
+                }
+                .onChange(of: gpsSyncEnabled) { _, enabled in
+                    if enabled {
+                        followSystemTimeZone = true
+                        locationTimeZoneManager.setEnabled(true)
+                        locationTimeZoneManager.refresh()
+                    } else if !followSystemTimeZone {
+                        locationTimeZoneManager.setEnabled(false)
+                    }
+                }
+                .onChange(of: locationTimeZoneManager.timeZone) { _, newTimeZone in
+                    guard followSystemTimeZone,
+                          let newTimeZone else {
+                        return
+                    }
+                    if clocks.indices.contains(0) {
+                        clocks[0].timeZoneIdentifier = newTimeZone.identifier
+                    }
+                    lastChimeTargetStart = nil
+                }
+                .onChange(of: hourlyChimeEnabled) { _, enabled in
+                    lastChimeTargetStart = nil
+                    if enabled {
+                        prepareHourlyChimePlayer()
+                        print("時報がONになりました。時報間隔: \(normalizedChimeIntervalMinutes)分")
+                    } else {
+                        hourlyChimePlayer?.stop()
+                        hourlyChimePlayer?.currentTime = 0
+                        print("時報がOFFになりました")
+                    }
+                }
+                .onChange(of: hourlyChimeVolume) { _, volume in
+                    hourlyChimePlayer?.volume = Float(hourlyChimeVolume)
+                    print("時報音量を変更しました: \(String(format: "%.2f", volume))")
+                }
+                .onChange(of: hourlyChimeIntervalMinutes) { _, newValue in
+                    lastChimeTargetStart = nil
+                    print("時報タイミングを変更しました: \(newValue)分")
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    print("scenePhase が変更されました: \(phase)")
+                    guard phase == .active else {
+                        return
+                    }
+                    prepareAudioPlayers()
+                    lastChimeTargetStart = nil
+                    if followSystemTimeZone {
+                        gpsSyncEnabled = true
+                        locationTimeZoneManager.setEnabled(true)
+                        locationTimeZoneManager.refresh()
+                    } else {
+                        gpsSyncEnabled = false
+                        locationTimeZoneManager.setEnabled(false)
+                    }
                 }
             }
         }
@@ -1096,4 +1194,3 @@ struct ClockHand: View {
 #Preview {
     ContentView()
 }
-
