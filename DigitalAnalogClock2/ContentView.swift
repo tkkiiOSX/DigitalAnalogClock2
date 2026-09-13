@@ -77,6 +77,9 @@ struct ContentView: View {
     // jihou.mp3は3秒目が0秒なので、対象時刻の3秒前から再生する
     private let hourlyChimeLeadTimeSeconds: TimeInterval = 3
 
+    // 追加: 画面の向き状態を保持する
+    @State private var interfaceOrientation: UIDeviceOrientation = UIDevice.current.orientation
+
     private let timer = Timer.publish(
         every: 1 / 30,
         on: .main,
@@ -108,100 +111,60 @@ struct ContentView: View {
         GeometryReader { geometry in
             let isPortrait = geometry.size.height > geometry.size.width
             if isPortrait {
-                VStack {
-                    Button(action: {
-                        clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
-                    }) {
-                        Label("", systemImage: "plus")
-                            .font(.headline)
-                            .padding(8)
-                    }
-                    Spacer(minLength: 6)
-                    if clocks.count <= 2 {
-                        VStack(spacing: 24) {
-                            ForEach(clocks) { clock in
-                                GeometryReader { geo in
-                                    let size = min(geo.size.width, geo.size.height)
-                                    let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
-                                    clockContainer(
-                                        size: size,
-                                        timeZone: tz,
-                                        designSettings: clock.designSettings,
-                                        showSettings: Binding(
-                                            get: {
-                                                clock.showSettings
-                                            },
-                                            set: { value in
-                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                    clocks[idx].showSettings = value
-                                                }
-                                            }
-                                        ),
-                                        onSettings: {
-                                            if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                clocks[idx].showSettings = true
-                                            }
+                ScrollView(.vertical, showsIndicators: true) {
+                    VStack(spacing: 24) {
+                        ForEach(clocks) { clock in
+                            GeometryReader { geo in
+                                let size = min(geo.size.width, geo.size.height)
+                                let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
+                                clockContainer(
+                                    size: size,
+                                    timeZone: tz,
+                                    designSettings: clock.designSettings,
+                                    showSettings: Binding(
+                                        get: {
+                                            clock.showSettings
                                         },
-                                        onUpdateTimeZone: { newTimeZone in
+                                        set: { value in
                                             if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                                clocks[idx].showSettings = value
                                             }
                                         }
-                                    )
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
-                                }
-                                .aspectRatio(1, contentMode: .fit)
-                                .padding()
-                            }
-                        }
-                    } else {
-                        ScrollView(.vertical, showsIndicators: true) {
-                            VStack(spacing: 24) {
-                                ForEach(clocks) { clock in
-                                    GeometryReader { geo in
-                                        let size = min(geo.size.width, geo.size.height)
-                                        let tz = TimeZone(identifier: clock.timeZoneIdentifier) ?? .current
-                                        clockContainer(
-                                            size: size,
-                                            timeZone: tz,
-                                            designSettings: clock.designSettings,
-                                            showSettings: Binding(
-                                                get: {
-                                                    clock.showSettings
-                                                },
-                                                set: { value in
-                                                    if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                        clocks[idx].showSettings = value
-                                                    }
-                                                }
-                                            ),
-                                            onSettings: {
-                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                    clocks[idx].showSettings = true
-                                                }
-                                            },
-                                            onUpdateTimeZone: { newTimeZone in
-                                                if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
-                                                    clocks[idx].timeZoneIdentifier = newTimeZone.identifier
-                                                }
-                                            }
-                                        )
-                                        .frame(width: geo.size.width, height: geo.size.height)
-                                        .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                                    ),
+                                    onSettings: {
+                                        if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                            clocks[idx].showSettings = true
+                                        }
+                                    },
+                                    onUpdateTimeZone: { newTimeZone in
+                                        if let idx = clocks.firstIndex(where: { $0.id == clock.id }) {
+                                            clocks[idx].timeZoneIdentifier = newTimeZone.identifier
+                                        }
                                     }
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .padding()
-                                }
+                                )
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .rotationEffect(gyroEnabled ? rotationAngle(isPortrait: isPortrait) : .zero)
                             }
-                            .padding(.bottom)
+                            .aspectRatio(1, contentMode: .fit)
+                            .padding()
                         }
+                        GeometryReader { geo in
+                            let size = min(geo.size.width, geo.size.height)
+                            dottedAddClockContainer(size: size) {
+                                clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
+                            }
+                            .frame(width: geo.size.width, height: geo.size.height)
+                        }
+                        .aspectRatio(1, contentMode: .fit)
+                        .padding()
                     }
+                    .padding(.bottom)
                 }
                 .padding()
                 .onReceive(timer) { newDate in
                     handleTimer(newDate)
                 }
+                // 追加: 画面回転検知用の通知購読設定
                 .onAppear {
                     print("ContentView.onAppear が呼ばれました")
                     prepareAudioPlayers()
@@ -209,6 +172,12 @@ struct ContentView: View {
                     if gyroEnabled {
                         gyroManager.start()
                     }
+                    // 画面回転方向の初期設定
+                    interfaceOrientation = UIDevice.current.orientation
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                    // 画面回転通知を受けてinterfaceOrientationを更新
+                    interfaceOrientation = UIDevice.current.orientation
                 }
                 .onDisappear {
                     if gyroEnabled {
@@ -278,24 +247,13 @@ struct ContentView: View {
                 }
             } else {
                 HStack(alignment: .center, spacing: 0) {
-                    VStack {
-                        Button(action: {
-                            clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
-                        }) {
-                            Label("", systemImage: "plus")
-                                .font(.headline)
-                                .padding(8)
-                        }
-                        Spacer()
-                    }
-                    .frame(width: 90)
                     Spacer(minLength: 12)
 
                     let clockCount = clocks.count
                     let spacing: CGFloat = 24
                     let availableHeight = geometry.size.height - 32
                     let clockSize = max(120, availableHeight)
-                    let totalContentWidth = CGFloat(clockCount) * clockSize + CGFloat(clockCount - 1) * spacing
+                    let totalContentWidth = CGFloat(clockCount + 1) * clockSize + CGFloat(clockCount) * spacing
 
                     ScrollView(.horizontal, showsIndicators: true) {
                         HStack(spacing: spacing) {
@@ -326,7 +284,10 @@ struct ContentView: View {
                                     }
                                 )
                                 .frame(width: clockSize, height: clockSize)
-                                .rotationEffect(gyroEnabled ? Angle(radians: -gyroManager.gravityAngle) : .zero)
+                                .rotationEffect(gyroEnabled ? rotationAngle(isPortrait: isPortrait) : .zero)
+                            }
+                            dottedAddClockContainer(size: clockSize) {
+                                clocks.append(ClockInstance(timeZoneIdentifier: "Asia/Tokyo"))
                             }
                         }
                         .frame(width: totalContentWidth, height: availableHeight, alignment: .center)
@@ -340,6 +301,7 @@ struct ContentView: View {
                 .onReceive(timer) { newDate in
                     handleTimer(newDate)
                 }
+                // 追加: 画面回転検知用の通知購読設定
                 .onAppear {
                     print("ContentView.onAppear が呼ばれました")
                     prepareAudioPlayers()
@@ -347,6 +309,12 @@ struct ContentView: View {
                     if gyroEnabled {
                         gyroManager.start()
                     }
+                    // 画面回転方向の初期設定
+                    interfaceOrientation = UIDevice.current.orientation
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                    // 画面回転通知を受けてinterfaceOrientationを更新
+                    interfaceOrientation = UIDevice.current.orientation
                 }
                 .onDisappear {
                     if gyroEnabled {
@@ -416,6 +384,43 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    /// 画面の向きに応じた角度補正値をラジアンで返す
+    private func orientationAngleAdjustment() -> Double {
+        switch interfaceOrientation {
+        case .landscapeLeft:
+            return .pi / 2
+        case .landscapeRight:
+            return -.pi / 2
+        case .portraitUpsideDown:
+            return .pi
+        default:
+            return 0
+        }
+    }
+
+    /// ジャイロの角度と画面の向きに基づく回転角度を計算して返す
+    private func rotationAngle(isPortrait: Bool) -> Angle {
+        // gyroEnabledが有効なら、ジャイロ角度と画面回転補正を加算
+        let baseAngle = -gyroManager.gravityAngle
+        let adjustment = orientationAngleAdjustment()
+        return gyroEnabled ? Angle(radians: baseAngle + adjustment) : .zero
+    }
+
+    private func dottedAddClockContainer(size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: size * 0.12)
+                    .stroke(style: StrokeStyle(lineWidth: size * 0.03, dash: [8]))
+                    .foregroundColor(.secondary)
+                Image(systemName: "plus")
+                    .font(.system(size: max(36, size * 0.18), weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: size, height: size)
+        }
+        .accessibilityLabel("新しい時計を追加")
     }
 
     private func configureLocationTimeZoneTracking() {
