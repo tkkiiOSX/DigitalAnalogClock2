@@ -16,9 +16,6 @@ struct SettingsView: View {
 
     @ObservedObject var designSettings: ClockDesignSettings
 
-    @AppStorage("gyroEnabled")
-    private var gyroEnabled = false
-
     var onOK: () -> Void
 
     @State private var showingMultipleTimeZones = false
@@ -95,13 +92,6 @@ struct SettingsView: View {
             Form {
                 clockDesignSection
                 timeZoneSection
-                Section {
-                    Toggle("ジャイロON/OFF (0時=重力上)", isOn: $gyroEnabled)
-                        .accessibilityIdentifier("gyroToggle")
-                        .padding(.vertical, 10)
-                        .font(.headline)
-                        .tint(.blue)
-                }
             }
             .navigationTitle("設定")
             .toolbar {
@@ -241,24 +231,24 @@ struct SettingsView: View {
 
     private var timeZoneSection: some View {
         Section(header: Text("タイムゾーン")) {
-            // 【廃止】現在地のタイムゾーンに追従するトグル
             // Toggle(
-            //     "現在地のタイムゾーンに追従する",
-            //     isOn: followSystemTimeZoneBinding
+            //     "タイムゾーンを手動固定",
+            //     isOn: manualFixedTimeZoneBinding
             // )
+            // // 【廃止】
 
-            Toggle(
-                "タイムゾーンを手動固定",
-                isOn: manualFixedTimeZoneBinding
-            )
+            // Text(
+            //     followSystemTimeZone
+            //         ? "現在地からタイムゾーンを取得して自動で追従します。Simulatorの位置変更もこの設定で反映します。"
+            //         : "選択したタイムゾーンに固定します。現在地が変わっても変更されません。"
+            // )
+            // .font(.footnote)
+            // .foregroundStyle(.secondary)
+            // // 【廃止】
 
-            Text(
-                followSystemTimeZone
-                    ? "現在地からタイムゾーンを取得して自動で追従します。Simulatorの位置変更もこの設定で反映します。"
-                    : "選択したタイムゾーンに固定します。現在地が変わっても変更されません。"
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            /*Text("選択したタイムゾーンに固定します。現在地が変わっても変更されません。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)*/
 
             NavigationLink {
                 TimeZoneSelectionView(
@@ -284,27 +274,6 @@ struct SettingsView: View {
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
-
-            // 【廃止】「言語と地域の地域を反映」ボタン
-            // Button {
-            //     applyRegionTimeZone()
-            // } label: {
-            //     Label(
-            //         "言語と地域の地域を反映",
-            //         systemImage: "globe"
-            //     )
-            // }
-
-            // 【廃止】「言語と地域の地域の設定から探す」ボタン
-            // Button {
-            //     prefillAndOpenSearchFromRegion()
-            // } label: {
-            //     Label(
-            //         "言語と地域の地域の設定から探す",
-            //         systemImage: "magnifyingglass"
-            //     )
-            // }
-            // .font(.footnote)
         }
     }
 
