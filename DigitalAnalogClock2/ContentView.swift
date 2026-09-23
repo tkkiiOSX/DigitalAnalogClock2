@@ -12,6 +12,7 @@ import AVFoundation
 struct ClockInfo: Codable, Identifiable {
     let id: UUID
     let timeZoneIdentifier: String
+    let showOuterRing: Bool
 }
 
 @MainActor
@@ -21,11 +22,13 @@ final class ClockInstance: ObservableObject, Identifiable {
     @Published var timeZoneIdentifier: String
     @Published var designSettings: ClockDesignSettings
     @Published var showSettings = false
+    @Published var showOuterRing: Bool = true
 
     init(
         id: UUID,
         timeZoneIdentifier: String,
-        designSettings: ClockDesignSettings? = nil
+        designSettings: ClockDesignSettings? = nil,
+        showOuterRing: Bool = true
     ) {
         self.id = id
         self.timeZoneIdentifier = timeZoneIdentifier
@@ -34,6 +37,7 @@ final class ClockInstance: ObservableObject, Identifiable {
         } else {
             self.designSettings = ClockDesignSettings(keyPrefix: "clockDesign.\(id).")
         }
+        self.showOuterRing = showOuterRing
     }
 }
 
@@ -49,9 +53,6 @@ struct ContentView: View {
     @AppStorage("tickVolume")
     private var tickVolume: Double = 0.8
 
-    @AppStorage("showOuterRing")
-    private var showOuterRing = true
-
     @AppStorage("hourlyChimeEnabled")
     private var hourlyChimeEnabled = false
 
@@ -63,7 +64,7 @@ struct ContentView: View {
 
     @AppStorage("savedClocks")
     private var savedClocksData: Data = {
-        let identifiers = [ClockInfo(id: UUID(), timeZoneIdentifier: TimeZone.current.identifier)]
+        let identifiers = [ClockInfo(id: UUID(), timeZoneIdentifier: TimeZone.current.identifier, showOuterRing: true)]
         return (try? JSONEncoder().encode(identifiers)) ?? Data()
     }()
 
@@ -233,13 +234,7 @@ struct ContentView: View {
             keepLabelsUpright: $keepLabelsUpright,
             sweepSecondHand: $sweepSecondHand,
             tickVolume: $tickVolume,
-            showOuterRing: $showOuterRing,
-
-            // 廃止した自動位置同期用の引数。
-            // SettingsView側で使用しないため固定値を渡す。
-            followSystemTimeZone: .constant(false),
-            gpsSyncEnabled: .constant(false),
-
+            showOuterRing: binding(for: clock, keyPath: \.showOuterRing),
             onSettings: {
                 setSettingsVisible(true, for: clock)
             },
@@ -253,6 +248,9 @@ struct ContentView: View {
                 tickVolume = Double(newVolume)
             }
         )
+        .onChange(of: clock.showOuterRing) { _, _ in
+            persistClocks()
+        }
     }
 
     private func addClockButton(size: CGFloat?) -> some View {
@@ -322,7 +320,8 @@ struct ContentView: View {
         let newId = UUID()
         let newClock = ClockInstance(
             id: newId,
-            timeZoneIdentifier: "Asia/Tokyo"
+            timeZoneIdentifier: "Asia/Tokyo",
+            showOuterRing: true
         )
         clocks.append(newClock)
         persistClocks()
@@ -342,7 +341,8 @@ struct ContentView: View {
                 return ClockInstance(
                     id: info.id,
                     timeZoneIdentifier: info.timeZoneIdentifier,
-                    designSettings: designSettings
+                    designSettings: designSettings,
+                    showOuterRing: info.showOuterRing
                 )
             }
         } else {
@@ -350,7 +350,8 @@ struct ContentView: View {
             clocks = [
                 ClockInstance(
                     id: defaultId,
-                    timeZoneIdentifier: TimeZone.current.identifier
+                    timeZoneIdentifier: TimeZone.current.identifier,
+                    showOuterRing: true
                 )
             ]
             persistClocks()
@@ -358,7 +359,7 @@ struct ContentView: View {
     }
 
     private func persistClocks() {
-        let infos = clocks.map { ClockInfo(id: $0.id, timeZoneIdentifier: $0.timeZoneIdentifier) }
+        let infos = clocks.map { ClockInfo(id: $0.id, timeZoneIdentifier: $0.timeZoneIdentifier, showOuterRing: $0.showOuterRing) }
 
         guard let data = try? JSONEncoder().encode(infos) else {
             return

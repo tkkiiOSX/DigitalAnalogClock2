@@ -11,19 +11,12 @@ struct SettingsView: View {
     @Binding var tickVolume: Float
     @Binding var showOuterRing: Bool
     @Binding var timeZone: TimeZone
-    @Binding var followSystemTimeZone: Bool
-    @Binding var gpsSyncEnabled: Bool
 
     @ObservedObject var designSettings: ClockDesignSettings
 
     var onOK: () -> Void
 
-    @State private var showingMultipleTimeZones = false
-    @State private var showingUnavailableTimeZoneAlert = false
-    @State private var regionTimeZoneCandidates: [TimeZoneOption] = []
     @State private var showingDesignSettings = false
-    @State private var showingTimeZoneSearch = false
-    @State private var timeZoneSearchText = ""
 
     private static let timeZoneOptions: [TimeZoneOption] = {
         let referenceDate = Date()
@@ -65,65 +58,21 @@ struct SettingsView: View {
             ?? timeZone.identifier
     }
 
-    private var followSystemTimeZoneBinding: Binding<Bool> {
-        Binding(
-            get: {
-                followSystemTimeZone
-            },
-            set: { enabled in
-                setFollowSystemTimeZone(enabled)
-            }
-        )
-    }
-
-    private var manualFixedTimeZoneBinding: Binding<Bool> {
-        Binding(
-            get: {
-                !followSystemTimeZone
-            },
-            set: { enabled in
-                setFollowSystemTimeZone(!enabled)
-            }
-        )
-    }
-
     var body: some View {
         NavigationStack {
             Form {
                 clockDesignSection
                 timeZoneSection
+                numeralStyleSection
             }
-            .navigationTitle("設定")
+            .navigationTitle("設定 (Settings)")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完了") {
+                    Button("完了 (Done)") {
                         closeSettings()
                     }
                 }
             }
-        }
-        .alert(
-            "タイムゾーンを自動判定できません",
-            isPresented: $showingUnavailableTimeZoneAlert
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("タイムゾーン一覧から選択して下さい。")
-        }
-        .confirmationDialog(
-            "複数のタイムゾーンがあります。一覧から選択して下さい。",
-            isPresented: $showingMultipleTimeZones,
-            titleVisibility: .visible
-        ) {
-            ForEach(regionTimeZoneCandidates) { option in
-                Button {
-                    selectRegionTimeZone(option)
-                } label: {
-                    Text(option.displayName)
-                }
-            }
-
-            Button("キャンセル", role: .cancel) {}
         }
         .sheet(isPresented: $showingDesignSettings) {
             DesignSettingsView(
@@ -134,19 +83,10 @@ struct SettingsView: View {
                 settings: designSettings
             )
         }
-        .sheet(isPresented: $showingTimeZoneSearch) {
-            TimeZoneSearchView(
-                options: Self.timeZoneOptions,
-                searchText: $timeZoneSearchText
-            ) { option in
-                selectRegionTimeZone(option)
-                showingTimeZoneSearch = false
-            }
-        }
     }
 
     private var clockDesignSection: some View {
-        Section(header: Text("時計デザイン")) {
+        Section(header: Text("時計デザイン (Clock Design)")) {
             Button {
                 showingDesignSettings = true
             } label: {
@@ -214,9 +154,17 @@ struct SettingsView: View {
                         }
                     }
 
-                    HStack {
-                        Text("時計外観を変更")
-                            .foregroundStyle(.primary)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(
+                            "時計外観を変更\n"
+                                + "(Change Clock Appearance)"
+                        )
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
 
                         Spacer()
 
@@ -230,50 +178,83 @@ struct SettingsView: View {
     }
 
     private var timeZoneSection: some View {
-        Section(header: Text("タイムゾーン")) {
-            // Toggle(
-            //     "タイムゾーンを手動固定",
-            //     isOn: manualFixedTimeZoneBinding
-            // )
-            // // 【廃止】
-
-            // Text(
-            //     followSystemTimeZone
-            //         ? "現在地からタイムゾーンを取得して自動で追従します。Simulatorの位置変更もこの設定で反映します。"
-            //         : "選択したタイムゾーンに固定します。現在地が変わっても変更されません。"
-            // )
-            // .font(.footnote)
-            // .foregroundStyle(.secondary)
-            // // 【廃止】
-
-            /*Text("選択したタイムゾーンに固定します。現在地が変わっても変更されません。")
-                .font(.footnote)
-                .foregroundStyle(.secondary)*/
-
+        Section(header: Text("タイムゾーン (Time Zone)")) {
             NavigationLink {
                 TimeZoneSelectionView(
                     options: Self.timeZoneOptions,
                     selectedIdentifier: timeZone.identifier
                 ) { option in
-                    selectRegionTimeZone(option)
+                    selectTimeZone(option)
                 }
             } label: {
-                HStack {
-                    Text("タイムゾーン")
+                HStack(alignment: .firstTextBaseline) {
+                    Text("タイムゾーン\n(Time Zone)")
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
                     Text(currentTimeZoneTitle)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
                 }
             }
 
             Text(
-                "同じUTC時差でも、地域ごとに夏時間や過去の時差変更が異なる場合があります。"
+                "同じUTC時差でも、地域ごとに夏時間や過去の時差変更が異なる場合があります。\n"
+                    + "(Even with the same UTC offset, daylight saving time and historical offset changes may differ by region.)"
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
+        }
+    }
+
+    private var numeralStyleSection: some View {
+        Section(header: Text("数字の表示 (Numeral Display)")) {
+            Picker(
+                selection: $designSettings.numeralStyle
+            ) {
+                ForEach(NumeralStyle.allCases) { style in
+                    Text(style.displayName)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                        .tag(style)
+                }
+            } label: {
+                Text(
+                    "針の先端の数字\n"
+                        + "(Numbers in Hand Tips)"
+                )
+                .multilineTextAlignment(.leading)
+                .fixedSize(
+                    horizontal: false,
+                    vertical: true
+                )
+            }
+            .pickerStyle(.segmented)
+
+            Text(
+                "複数の数字形式から選択できます。\n"
+                    + "(You can choose from multiple number formats.)"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
         }
     }
 
@@ -282,236 +263,9 @@ struct SettingsView: View {
         dismiss()
     }
 
-    private func setFollowSystemTimeZone(_ enabled: Bool) {
-        followSystemTimeZone = enabled
-        gpsSyncEnabled = enabled
-    }
-
-    private func applyRegionTimeZone() {
-        guard let regionCode = Locale.current.regionCode else {
-            showingUnavailableTimeZoneAlert = true
-            return
-        }
-
-        let candidates = regionTimeZoneCandidates(
-            for: regionCode
-        )
-
-        guard !candidates.isEmpty else {
-            showingUnavailableTimeZoneAlert = true
-            return
-        }
-
-        if candidates.count == 1,
-           let candidate = candidates.first {
-            selectRegionTimeZone(candidate)
-        } else {
-            regionTimeZoneCandidates = candidates
-            showingMultipleTimeZones = true
-        }
-    }
-
-    private func prefillAndOpenSearchFromRegion() {
-        if let code = Locale.current.regionCode {
-            timeZoneSearchText = Locale.current.localizedString(
-                forRegionCode: code
-            ) ?? code
-        } else {
-            timeZoneSearchText = ""
-        }
-
-        showingTimeZoneSearch = true
-    }
-
-    private func selectRegionTimeZone(_ option: TimeZoneOption) {
-        gpsSyncEnabled = false
-        followSystemTimeZone = false
+    private func selectTimeZone(_ option: TimeZoneOption) {
         timeZone = option.timeZone
     }
-
-    private func regionTimeZoneCandidates(
-        for regionCode: String
-    ) -> [TimeZoneOption] {
-        regionCodeToTimeZoneIDs(regionCode.uppercased())
-            .compactMap {
-                Self.timeZoneOptionsByIdentifier[$0]
-            }
-    }
-
-    private func regionCodeToTimeZoneIDs(
-        _ regionCode: String
-    ) -> [String] {
-        Self.regionTimeZoneMap[regionCode] ?? []
-    }
-
-    private static let regionTimeZoneMap: [
-        String: [String]
-    ] = [
-        "AD": ["Europe/Andorra"],
-        "AE": ["Asia/Dubai"],
-        "AR": ["America/Argentina/Buenos_Aires"],
-        "AT": ["Europe/Vienna"],
-        "AU": [
-            "Australia/Sydney",
-            "Australia/Melbourne",
-            "Australia/Brisbane",
-            "Australia/Adelaide",
-            "Australia/Perth",
-            "Australia/Darwin",
-            "Australia/Hobart"
-        ],
-        "BE": ["Europe/Brussels"],
-        "BH": ["Asia/Bahrain"],
-        "BR": [
-            "America/Sao_Paulo",
-            "America/Manaus",
-            "America/Belem",
-            "America/Fortaleza",
-            "America/Recife",
-            "America/Bahia",
-            "America/Porto_Velho",
-            "America/Boa_Vista",
-            "America/Rio_Branco"
-        ],
-        "CA": [
-            "America/Toronto",
-            "America/Vancouver",
-            "America/Edmonton",
-            "America/Winnipeg",
-            "America/Halifax",
-            "America/St_Johns"
-        ],
-        "CH": ["Europe/Zurich"],
-        "CN": ["Asia/Shanghai"],
-        "CZ": ["Europe/Prague"],
-        "DE": ["Europe/Berlin"],
-        "DK": ["Europe/Copenhagen"],
-        "EG": ["Africa/Cairo"],
-        "ES": [
-            "Europe/Madrid",
-            "Atlantic/Canary"
-        ],
-        "FI": ["Europe/Helsinki"],
-        "FO": ["Atlantic/Faroe"],
-        "FR": ["Europe/Paris"],
-        "GB": ["Europe/London"],
-        "GG": ["Europe/Guernsey"],
-        "GI": ["Europe/Gibraltar"],
-        "GL": [
-            "America/Nuuk",
-            "America/Godthab",
-            "America/Scoresbysund",
-            "America/Thule"
-        ],
-        "GR": ["Europe/Athens"],
-        "HK": ["Asia/Hong_Kong"],
-        "HT": ["America/Port-au-Prince"],
-        "HU": ["Europe/Budapest"],
-        "ID": [
-            "Asia/Jakarta",
-            "Asia/Makassar",
-            "Asia/Jayapura"
-        ],
-        "IE": ["Europe/Dublin"],
-        "IM": ["Europe/Isle_of_Man"],
-        "IN": ["Asia/Kolkata"],
-        "IS": ["Atlantic/Reykjavik"],
-        "IT": ["Europe/Rome"],
-        "JE": ["Europe/Jersey"],
-        "JO": ["Asia/Amman"],
-        "JP": ["Asia/Tokyo"],
-        "KE": ["Africa/Nairobi"],
-        "KR": ["Asia/Seoul"],
-        "KW": ["Asia/Kuwait"],
-        "LI": ["Europe/Vaduz"],
-        "LU": ["Europe/Luxembourg"],
-        "MC": ["Europe/Monaco"],
-        "MT": ["Europe/Malta"],
-        "MX": [
-            "America/Mexico_City",
-            "America/Cancun",
-            "America/Chihuahua",
-            "America/Hermosillo",
-            "America/Matamoros",
-            "America/Mazatlan",
-            "America/Merida",
-            "America/Monterrey",
-            "America/Ojinaga",
-            "America/Tijuana"
-        ],
-        "VE": ["America/Caracas"],
-        "PE": ["America/Lima"],
-        "CL": [
-            "America/Santiago",
-            "Pacific/Easter"
-        ],
-        "CO": ["America/Bogota"],
-        "EC": [
-            "America/Guayaquil",
-            "Pacific/Galapagos"
-        ],
-        "BO": ["America/La_Paz"],
-        "PY": ["America/Asuncion"],
-        "UY": ["America/Montevideo"],
-        "PA": ["America/Panama"],
-        "CR": ["America/Costa_Rica"],
-        "GT": ["America/Guatemala"],
-        "SV": ["America/El_Salvador"],
-        "HN": ["America/Tegucigalpa"],
-        "NI": ["America/Managua"],
-        "DO": ["America/Santo_Domingo"],
-        "CU": ["America/Havana"],
-        "PR": ["America/Puerto_Rico"],
-        "JM": ["America/Jamaica"],
-        "TT": ["America/Port_of_Spain"],
-        "BZ": ["America/Belize"],
-        "GF": ["America/Cayenne"],
-        "GY": ["America/Guyana"],
-        "SR": ["America/Paramaribo"],
-        "NL": ["Europe/Amsterdam"],
-        "NO": ["Europe/Oslo"],
-        "NR": ["Pacific/Nauru"],
-        "NZ": [
-            "Pacific/Auckland",
-            "Pacific/Chatham"
-        ],
-        "OM": ["Asia/Muscat"],
-        "PG": [
-            "Pacific/Port_Moresby",
-            "Pacific/Bougainville"
-        ],
-        "PL": ["Europe/Warsaw"],
-        "PT": [
-            "Europe/Lisbon",
-            "Atlantic/Madeira",
-            "Atlantic/Azores"
-        ],
-        "QA": ["Asia/Qatar"],
-        "RU": [
-            "Europe/Moscow",
-            "Europe/Kaliningrad",
-            "Europe/Samara",
-            "Asia/Yekaterinburg",
-            "Asia/Omsk",
-            "Asia/Novosibirsk",
-            "Asia/Irkutsk",
-            "Asia/Yakutsk",
-            "Asia/Vladivostok",
-            "Asia/Magadan",
-            "Asia/Sakhalin",
-            "Asia/Kamchatka",
-            "Asia/Anadyr"
-        ],
-        "SA": ["Asia/Riyadh"],
-        "SB": ["Pacific/Guadalcanal"],
-        "SE": ["Europe/Stockholm"],
-        "SG": ["Asia/Singapore"],
-        "SM": ["Europe/San_Marino"],
-        "TR": ["Europe/Istanbul"],
-        "UA": ["Europe/Kyiv"],
-        "VA": ["Europe/Vatican"],
-        "ZA": ["Africa/Johannesburg"]
-    ]
 }
 
 private struct TimeZoneSelectionView: View {
@@ -543,63 +297,12 @@ private struct TimeZoneSelectionView: View {
                 }
             }
         }
-        .navigationTitle("タイムゾーン")
+        .navigationTitle("タイムゾーン\n(Time Zone)")
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "タイムゾーン名・都市名・識別子で検索"
+            prompt: "タイムゾーン名・都市名・識別子で検索\n(Search by time zone, city, or identifier)"
         )
-    }
-}
-
-private struct TimeZoneSearchView: View {
-    let options: [TimeZoneOption]
-    @Binding var searchText: String
-    let onSelect: (TimeZoneOption) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    private var filteredOptions: [TimeZoneOption] {
-        TimeZoneOption.filtered(
-            options,
-            searchText: searchText
-        )
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if filteredOptions.isEmpty {
-                    Text("一致するタイムゾーンがありません。他の言語で入力してみてください。")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(filteredOptions) { option in
-                        Button {
-                            onSelect(option)
-                            dismiss()
-                        } label: {
-                            TimeZoneOptionRow(
-                                option: option,
-                                isSelected: false
-                            )
-                        }
-                    }
-                }
-            }
-            .navigationTitle("タイムゾーンを検索")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        dismiss()
-                    }
-                }
-            }
-            .searchable(
-                text: $searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "都市名・国名・識別子で検索"
-            )
-        }
     }
 }
 
@@ -612,10 +315,19 @@ private struct TimeZoneOptionRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(option.title)
                     .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
 
                 Text(option.identifier)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
             }
 
             Spacer(minLength: 8)
@@ -632,7 +344,6 @@ private struct TimeZoneOption: Identifiable, Hashable {
     let identifier: String
     let timeZone: TimeZone
     let title: String
-    let displayName: String
     let normalizedSearchText: String
 
     var id: String {
@@ -654,11 +365,9 @@ private struct TimeZoneOption: Identifiable, Hashable {
         )
 
         self.title = title
-        self.displayName = "\(title)\n識別子: \(identifier)"
         self.normalizedSearchText = [
             title,
-            identifier,
-            self.displayName
+            identifier
         ]
         .joined(separator: " ")
         .normalizedForTimeZoneSearch
@@ -697,7 +406,35 @@ private struct TimeZoneOption: Identifiable, Hashable {
             ) ?? fallbackDisplayName(for: identifier)
         }
 
-        return "\(name)（UTC\(utcOffsetString(for: timeZone, referenceDate: referenceDate))）"
+        let englishName = englishDisplayName(
+            for: identifier
+        )
+
+        let utcText = utcOffsetString(
+            for: timeZone,
+            referenceDate: referenceDate
+        )
+
+        return "\(name) (\(englishName))\n（UTC\(utcText)）"
+    }
+
+    private static func englishDisplayName(
+        for identifier: String
+    ) -> String {
+        identifier
+            .split(separator: "/")
+            .map { part in
+                part
+                    .replacingOccurrences(
+                        of: "_",
+                        with: " "
+                    )
+                    .replacingOccurrences(
+                        of: "St ",
+                        with: "St. "
+                    )
+            }
+            .joined(separator: " / ")
     }
 
     private static func utcOffsetString(
@@ -826,8 +563,6 @@ struct SettingsView_Previews: PreviewProvider {
             tickVolume: .constant(0.8),
             showOuterRing: .constant(true),
             timeZone: .constant(.current),
-            followSystemTimeZone: .constant(false),
-            gpsSyncEnabled: .constant(false),
             designSettings: ClockDesignSettings()
         ) {}
     }

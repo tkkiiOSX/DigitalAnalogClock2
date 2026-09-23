@@ -14,11 +14,56 @@ enum ClockFrameStyle: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .circle:
-            return "丸枠"
+            return "丸枠(Circle) "
+
         case .rectangle:
-            return "角枠"
+            return "角枠(Rectangle) "
+
         case .roundedRectangle:
-            return "角丸枠"
+            return "角丸枠(Rounded Rectangle)"
+        }
+    }
+}
+
+enum NumeralStyle: String, CaseIterable, Identifiable {
+    case latin
+    case kanji
+    case hangul
+    case roman
+    case arabicIndic
+    case persian
+    case devanagari
+    case thai
+
+    var id: String {
+        rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .latin:
+            return "25"
+
+        case .kanji:
+            return "二五"
+
+        case .hangul:
+            return "이오"
+
+        case .roman:
+            return "XXV"
+
+        case .arabicIndic:
+            return "٢٥"
+
+        case .persian:
+            return "۲۵"
+            
+        case .devanagari:
+            return "२५"
+
+        case .thai:
+            return "๒๕"
         }
     }
 }
@@ -38,31 +83,46 @@ final class ClockDesignSettings: ObservableObject {
 
     @Published var frameColor: Color {
         didSet {
-            saveColor(frameColor, key: full(Keys.frameColor))
+            saveColor(
+                frameColor,
+                key: full(Keys.frameColor)
+            )
         }
     }
 
     @Published var hourHandColor: Color {
         didSet {
-            saveColor(hourHandColor, key: full(Keys.hourHandColor))
+            saveColor(
+                hourHandColor,
+                key: full(Keys.hourHandColor)
+            )
         }
     }
 
     @Published var minuteHandColor: Color {
         didSet {
-            saveColor(minuteHandColor, key: full(Keys.minuteHandColor))
+            saveColor(
+                minuteHandColor,
+                key: full(Keys.minuteHandColor)
+            )
         }
     }
 
     @Published var secondHandColor: Color {
         didSet {
-            saveColor(secondHandColor, key: full(Keys.secondHandColor))
+            saveColor(
+                secondHandColor,
+                key: full(Keys.secondHandColor)
+            )
         }
     }
 
     @Published var backgroundColor: Color {
         didSet {
-            saveColor(backgroundColor, key: full(Keys.backgroundColor))
+            saveColor(
+                backgroundColor,
+                key: full(Keys.backgroundColor)
+            )
         }
     }
 
@@ -81,6 +141,15 @@ final class ClockDesignSettings: ObservableObject {
         }
     }
 
+    @Published var numeralStyle: NumeralStyle {
+        didSet {
+            UserDefaults.standard.set(
+                numeralStyle.rawValue,
+                forKey: full(Keys.numeralStyle)
+            )
+        }
+    }
+
     var backgroundImage: UIImage? {
         guard let backgroundImageData else {
             return nil
@@ -91,42 +160,46 @@ final class ClockDesignSettings: ObservableObject {
 
     init(keyPrefix: String = "clockDesign.") {
         self.keyPrefix = keyPrefix
-        let k: (String) -> String = { keyPrefix + $0 }
+
+        let key = { (name: String) in
+            keyPrefix + name
+        }
+
         let defaults = UserDefaults.standard
 
         if let rawValue = defaults.string(
-            forKey: k(Keys.frameStyle)
+            forKey: key(Keys.frameStyle)
         ),
-           let savedFrameStyle = ClockFrameStyle(
-               rawValue: rawValue
-           ) {
+        let savedFrameStyle = ClockFrameStyle(
+            rawValue: rawValue
+        ) {
             frameStyle = savedFrameStyle
         } else {
             frameStyle = .circle
         }
 
         frameColor = Self.loadColor(
-            key: k(Keys.frameColor),
+            key: key(Keys.frameColor),
             defaultColor: .cyan
         )
 
         hourHandColor = Self.loadColor(
-            key: k(Keys.hourHandColor),
+            key: key(Keys.hourHandColor),
             defaultColor: .blue
         )
 
         minuteHandColor = Self.loadColor(
-            key: k(Keys.minuteHandColor),
+            key: key(Keys.minuteHandColor),
             defaultColor: .green
         )
 
         secondHandColor = Self.loadColor(
-            key: k(Keys.secondHandColor),
+            key: key(Keys.secondHandColor),
             defaultColor: .red
         )
 
         backgroundColor = Self.loadColor(
-            key: k(Keys.backgroundColor),
+            key: key(Keys.backgroundColor),
             defaultColor: Color(
                 .sRGB,
                 red: 0.7,
@@ -136,24 +209,53 @@ final class ClockDesignSettings: ObservableObject {
         )
 
         backgroundImageData = defaults.data(
-            forKey: k(Keys.backgroundImage)
+            forKey: key(Keys.backgroundImage)
         )
+
+        if let rawValue = defaults.string(
+            forKey: key(Keys.numeralStyle)
+        ),
+        let savedNumeralStyle = NumeralStyle(
+            rawValue: rawValue
+        ) {
+            numeralStyle = savedNumeralStyle
+        } else {
+            numeralStyle = .latin
+        }
     }
 
     func deleteBackgroundImage() {
         backgroundImageData = nil
     }
 
-    /// 全てのデザイン設定（このkeyPrefixのもの）をUserDefaultsから削除
+    /// このkeyPrefixに保存されている全デザイン設定を削除します。
     func removeAllStoredSettings() {
         let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: full(Keys.frameStyle))
-        defaults.removeObject(forKey: full(Keys.frameColor))
-        defaults.removeObject(forKey: full(Keys.hourHandColor))
-        defaults.removeObject(forKey: full(Keys.minuteHandColor))
-        defaults.removeObject(forKey: full(Keys.secondHandColor))
-        defaults.removeObject(forKey: full(Keys.backgroundColor))
-        defaults.removeObject(forKey: full(Keys.backgroundImage))
+
+        defaults.removeObject(
+            forKey: full(Keys.frameStyle)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.frameColor)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.hourHandColor)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.minuteHandColor)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.secondHandColor)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.backgroundColor)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.backgroundImage)
+        )
+        defaults.removeObject(
+            forKey: full(Keys.numeralStyle)
+        )
     }
 
     private func saveColor(
@@ -182,7 +284,7 @@ final class ClockDesignSettings: ObservableObject {
         guard let values = UserDefaults.standard.array(
             forKey: key
         ) as? [Double],
-              values.count == 4 else {
+        values.count == 4 else {
             return defaultColor
         }
 
@@ -195,7 +297,9 @@ final class ClockDesignSettings: ObservableObject {
         )
     }
 
-    private func full(_ key: String) -> String { keyPrefix + key }
+    private func full(_ key: String) -> String {
+        keyPrefix + key
+    }
 
     private enum Keys {
         static let frameStyle = "frameStyle"
@@ -205,6 +309,7 @@ final class ClockDesignSettings: ObservableObject {
         static let secondHandColor = "secondHandColor"
         static let backgroundColor = "backgroundColor"
         static let backgroundImage = "backgroundImage"
+        static let numeralStyle = "numeralStyle"
     }
 }
 
@@ -239,4 +344,3 @@ private extension Color {
         )
     }
 }
-

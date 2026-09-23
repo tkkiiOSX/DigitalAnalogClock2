@@ -29,35 +29,79 @@ struct DesignSettingsView: View {
     @State private var showingChimeTimingDialog = false
 
     private static let chimeTimingOptions: [ChimeTimingOption] = [
-        ChimeTimingOption(minutes: 1, title: "1分"),
-        ChimeTimingOption(minutes: 30, title: "30分"),
-        ChimeTimingOption(minutes: 60, title: "1時間"),
-        ChimeTimingOption(minutes: 360, title: "6時間"),
-        ChimeTimingOption(minutes: 720, title: "12時間"),
-        ChimeTimingOption(minutes: 1440, title: "24時間")
+        ChimeTimingOption(
+            minutes: 1,
+            title: "1分 (1 Minute)"
+        ),
+        ChimeTimingOption(
+            minutes: 30,
+            title: "30分 (30 Minutes)"
+        ),
+        ChimeTimingOption(
+            minutes: 60,
+            title: "1時間 (1 Hour)"
+        ),
+        ChimeTimingOption(
+            minutes: 360,
+            title: "6時間 (6 Hours)"
+        ),
+        ChimeTimingOption(
+            minutes: 720,
+            title: "12時間 (12 Hours)"
+        ),
+        ChimeTimingOption(
+            minutes: 1440,
+            title: "24時間 (24 Hours)"
+        )
     ]
 
     private var selectedChimeTimingTitle: String {
         Self.chimeTimingOptions.first {
             $0.minutes == hourlyChimeIntervalMinutes
-        }?.title ?? "1時間"
+        }?.title ?? "1時間 (1 Hour)"
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Toggle(
-                        "文字を常に上向きにする",
-                        isOn: $keepLabelsUpright
+                Section(
+                    header: Text(
+                        "全ての時計(All Clocks)：文字の上向き (Labels Upright)"
                     )
+                ) {
+                    Toggle(
+                        isOn: $keepLabelsUpright
+                    ) {
+                        Text(
+                            "文字を常に上向きにする\n"
+                                + "(Keep Labels Upright)"
+                        )
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                    }
                 }
 
-                Section(header: Text("秒針")) {
-                    Toggle(
-                        "スイープ秒針",
-                        isOn: $sweepSecondHand
+                Section(
+                    header: Text(
+                        "全ての時計(All Clocks)：秒針 (Second Hand)"
                     )
+                ) {
+                    Toggle(
+                        isOn: $sweepSecondHand
+                    ) {
+                        Text(
+                            "スイープ秒針\n"
+                                + "(Sweeping Second Hand)"
+                        )
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                    }
 
                     HStack {
                         Image(systemName: "speaker.fill")
@@ -77,40 +121,86 @@ struct DesignSettingsView: View {
                         Image(systemName: "speaker.wave.3.fill")
                     }
 
-                    Text("ステップ秒針のときに鳴る音の音量")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "ステップ秒針のときに鳴る音の音量\n"
+                            + "(Ticking Sound Volume in Step-Second Mode)"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
                 }
 
-                Section(header: Text("時報")) {
-                    Toggle(
-                        "時報を鳴らす",
-                        isOn: $hourlyChimeEnabled
+                Section(
+                    header: Text(
+                        "全ての時計(All Clocks)：時報 (Hourly Chime)"
                     )
+                ) {
+                    Toggle(
+                        isOn: $hourlyChimeEnabled
+                    ) {
+                        Text(
+                            "時報を鳴らす\n"
+                                + "(Enable Hourly Chime)"
+                        )
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                    }
 
                     Button {
                         showingChimeTimingDialog = true
                     } label: {
-                        HStack {
-                            Text("時報のタイミング")
-                                .foregroundStyle(.primary)
+                        HStack(
+                            alignment: .firstTextBaseline
+                        ) {
+                            Text(
+                                "時報のタイミング\n"
+                                    + "(Chime Timing)"
+                            )
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(
+                                horizontal: false,
+                                vertical: true
+                            )
 
-                            Spacer()
+                            Spacer(minLength: 8)
 
                             Text(selectedChimeTimingTitle)
                                 .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .fixedSize(
+                                    horizontal: false,
+                                    vertical: true
+                                )
 
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                            Image(
+                                systemName: "chevron.up.chevron.down"
+                            )
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
 
-                    Text("現在の設定: \(selectedChimeTimingTitle)")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "現在の設定: \(selectedChimeTimingTitle)\n"
+                            + "(Current Setting: \(selectedChimeTimingTitle))"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
 
                     HStack {
                         Image(systemName: "speaker.fill")
@@ -123,78 +213,149 @@ struct DesignSettingsView: View {
                         Image(systemName: "speaker.wave.3.fill")
                     }
 
-                    Text("時報の音量")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "時報の音量\n"
+                            + "(Hourly Chime Volume)"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
 
                     Button {
                         playTestHourlyChime()
                     } label: {
-                        Label(
-                            "時報をテスト再生",
-                            systemImage: "play.circle.fill"
-                        )
+                        Label {
+                            Text(
+                                "時報をテスト再生\n"
+                                    + "(Test Hourly Chime)"
+                            )
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(
+                                horizontal: false,
+                                vertical: true
+                            )
+                        } icon: {
+                            Image(systemName: "play.circle.fill")
+                        }
                     }
 
-                    Text("時報をテスト再生します。ここで音が鳴れば、正常です。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "時報をテスト再生します。ここで音が鳴れば、正常です。\n"
+                            + "(Test the hourly chime. If you hear the sound, it is working correctly.)"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
+                    )
 
-                    Text("選択したタイミングの0秒に合うように、時報を3秒前から再生します。秒針の音とは重ねて再生されます。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section(header: Text("表示")) {
-                    Toggle(
-                        "文字盤の外枠を表示",
-                        isOn: $showOuterRing
+                    Text(
+                        "選択したタイミングの0秒に合うように、時報を3秒前から再生します。秒針の音とは重ねて再生されます。\n"
+                            + "(Playback starts 3 seconds before the selected time and overlaps with the second-hand sound.)"
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(
+                        horizontal: false,
+                        vertical: true
                     )
                 }
 
-                Section(header: Text("枠の設定")) {
+                Section(
+                    header: Text(
+                        "表示 (Display)"
+                    )
+                ) {
+                    Toggle(
+                        isOn: $showOuterRing
+                    ) {
+                        Text(
+                            "文字盤の外枠を表示\n"
+                                + "(Show Outer Frame)"
+                        )
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
+                    }
+                }
+
+                Section(
+                    header: Text(
+                        "枠の設定 (Frame Settings)\n丸枠(Circle)\n角枠(Rectangle)\n角丸枠(Rounded Rectangle)"
+                    )
+                ) {
                     Picker(
-                        "枠の形状",
                         selection: $settings.frameStyle
                     ) {
                         ForEach(ClockFrameStyle.allCases) { style in
                             Text(style.displayName)
+                                .fixedSize(
+                                    horizontal: false,
+                                    vertical: true
+                                )
                                 .tag(style)
                         }
+                    } label: {
+                        Text(
+                            "枠の形状\n"
+                                + "(Frame Shape)"
+                        )
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(
+                            horizontal: false,
+                            vertical: true
+                        )
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: .infinity)
 
                     ColorPicker(
-                        "枠の色",
+                        "枠の色 (Frame Color)",
                         selection: $settings.frameColor,
                         supportsOpacity: true
                     )
                 }
 
-                Section(header: Text("針の色の設定")) {
+                Section(
+                    header: Text(
+                        "針の色の設定 (Hand Color Settings)"
+                    )
+                ) {
                     ColorPicker(
-                        "時針の色",
+                        "時針の色 (Hour Hand Color)",
                         selection: $settings.hourHandColor,
                         supportsOpacity: true
                     )
 
                     ColorPicker(
-                        "分針の色",
+                        "分針の色 (Minute Hand Color)",
                         selection: $settings.minuteHandColor,
                         supportsOpacity: true
                     )
 
                     ColorPicker(
-                        "秒針の色",
+                        "秒針の色 (Second Hand Color)",
                         selection: $settings.secondHandColor,
                         supportsOpacity: true
                     )
                 }
 
-                Section(header: Text("背景")) {
+                Section(
+                    header: Text(
+                        "背景 (Background)"
+                    )
+                ) {
                     ColorPicker(
-                        "背景色",
+                        "背景色 (Background Color)",
                         selection: $settings.backgroundColor,
                         supportsOpacity: true
                     )
@@ -204,10 +365,19 @@ struct DesignSettingsView: View {
                         matching: .images,
                         photoLibrary: .shared()
                     ) {
-                        Label(
-                            "写真を選択",
-                            systemImage: "photo"
-                        )
+                        Label {
+                            Text(
+                                "写真を選択\n"
+                                    + "(Select Photo)"
+                            )
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(
+                                horizontal: false,
+                                vertical: true
+                            )
+                        } icon: {
+                            Image(systemName: "photo")
+                        }
                     }
 
                     if settings.backgroundImage != nil {
@@ -215,10 +385,19 @@ struct DesignSettingsView: View {
                             settings.deleteBackgroundImage()
                             selectedPhotoItem = nil
                         } label: {
-                            Label(
-                                "写真を削除",
-                                systemImage: "trash"
-                            )
+                            Label {
+                                Text(
+                                    "写真を削除\n"
+                                        + "(Delete Photo)"
+                                )
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(
+                                    horizontal: false,
+                                    vertical: true
+                                )
+                            } icon: {
+                                Image(systemName: "trash")
+                            }
                         }
                     }
 
@@ -226,7 +405,10 @@ struct DesignSettingsView: View {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 180, height: 180)
+                            .frame(
+                                width: 180,
+                                height: 180
+                            )
                             .clipShape(
                                 RoundedRectangle(
                                     cornerRadius: 10
@@ -235,12 +417,19 @@ struct DesignSettingsView: View {
                     }
                 }
 
-                Section(header: Text("プレビュー")) {
+                Section(
+                    header: Text(
+                        "プレビュー (Preview)"
+                    )
+                ) {
                     DesignClockPreview(
                         settings: settings,
                         keepLabelsUpright: keepLabelsUpright
                     )
-                    .frame(width: 260, height: 260)
+                    .frame(
+                        width: 260,
+                        height: 260
+                    )
                     .mask {
                         GeometryReader { geo in
                             let size = min(
@@ -259,7 +448,9 @@ struct DesignSettingsView: View {
                                 RoundedRectangle(
                                     cornerRadius: max(
                                         0,
-                                        size * 0.12 - size * 0.035 - (size * 0.07) / 2
+                                        size * 0.12
+                                            - size * 0.035
+                                            - (size * 0.07) / 2
                                     )
                                 )
                             }
@@ -291,7 +482,9 @@ struct DesignSettingsView: View {
                                 RoundedRectangle(
                                     cornerRadius: max(
                                         0,
-                                        size * 0.12 - size * 0.035 - (size * 0.07) / 2
+                                        size * 0.12
+                                            - size * 0.035
+                                            - (size * 0.07) / 2
                                     )
                                 )
                                 .stroke(
@@ -303,26 +496,32 @@ struct DesignSettingsView: View {
                     }
                 }
             }
-            .navigationTitle("時計デザイン")
+            .navigationTitle(
+                "時計デザイン (Clock Design)"
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(
                     placement: .navigationBarTrailing
                 ) {
-                    Button("完了") {
+                    Button(
+                        "完了 (Done)"
+                    ) {
                         dismiss()
                     }
                 }
             }
             .confirmationDialog(
-                "時報のタイミング",
+                "時報のタイミング (Chime Timing)",
                 isPresented: $showingChimeTimingDialog,
                 titleVisibility: .visible
             ) {
                 ForEach(Self.chimeTimingOptions) { option in
                     Button {
                         hourlyChimeIntervalMinutes = option.minutes
-                        print("時報タイミングを選択しました: \(option.title)")
+                        print(
+                            "時報タイミングを選択しました: \(option.title)"
+                        )
                     } label: {
                         if option.minutes == hourlyChimeIntervalMinutes {
                             Text("✓ \(option.title)")
@@ -332,9 +531,20 @@ struct DesignSettingsView: View {
                     }
                 }
 
-                Button("キャンセル", role: .cancel) {}
+                Button(
+                    "キャンセル (Cancel)",
+                    role: .cancel
+                ) {}
             } message: {
-                Text("時報を鳴らす間隔を選択してください。")
+                Text(
+                    "時報を鳴らす間隔を選択してください。\n"
+                        + "(Select the hourly chime interval.)"
+                )
+                .multilineTextAlignment(.leading)
+                .fixedSize(
+                    horizontal: false,
+                    vertical: true
+                )
             }
             .task(id: selectedPhotoItem) {
                 await loadSelectedPhoto()
@@ -344,7 +554,9 @@ struct DesignSettingsView: View {
 
     private func playTestHourlyChime() {
         guard hourlyChimeVolume > 0 else {
-            print("時報テスト再生: 音量が0のため再生しません")
+            print(
+                "時報テスト再生: 音量が0のため再生しません"
+            )
             return
         }
 
@@ -352,8 +564,12 @@ struct DesignSettingsView: View {
             forResource: "jihou",
             withExtension: "mp3"
         ) else {
-            print("時報テスト再生: jihou.mp3がBundleに見つかりません")
-            print("Target Membership / Copy Bundle Resources を確認してください")
+            print(
+                "時報テスト再生: jihou.mp3がBundleに見つかりません"
+            )
+            print(
+                "Target Membership / Copy Bundle Resources を確認してください"
+            )
             return
         }
 
@@ -382,27 +598,46 @@ struct DesignSettingsView: View {
             }
 
             guard let testHourlyChimePlayer else {
-                print("時報テスト再生: プレイヤーを作成できませんでした")
+                print(
+                    "時報テスト再生: プレイヤーを作成できませんでした"
+                )
                 return
             }
 
             testHourlyChimePlayer.stop()
             testHourlyChimePlayer.currentTime = 0
-            testHourlyChimePlayer.volume = Float(hourlyChimeVolume)
+            testHourlyChimePlayer.volume = Float(
+                hourlyChimeVolume
+            )
 
             let didPlay = testHourlyChimePlayer.play()
 
             if didPlay {
-                print("時報テスト再生: jihou.mp3を再生しました")
-                print("時報テスト再生: duration \(String(format: "%.2f", testHourlyChimePlayer.duration))秒")
-                print("時報テスト再生: volume \(String(format: "%.2f", hourlyChimeVolume))")
-                print("時報テスト再生: 現在の時報タイミング \(selectedChimeTimingTitle)")
+                print(
+                    "時報テスト再生: jihou.mp3を再生しました"
+                )
+                print(
+                    "時報テスト再生: duration "
+                        + "\(String(format: "%.2f", testHourlyChimePlayer.duration))秒"
+                )
+                print(
+                    "時報テスト再生: volume "
+                        + "\(String(format: "%.2f", hourlyChimeVolume))"
+                )
+                print(
+                    "時報テスト再生: 現在の時報タイミング "
+                        + "\(selectedChimeTimingTitle)"
+                )
             } else {
-                print("時報テスト再生: jihou.mp3の再生に失敗しました")
+                print(
+                    "時報テスト再生: jihou.mp3の再生に失敗しました"
+                )
             }
         } catch {
             testHourlyChimePlayer = nil
-            print("時報テスト再生: 準備または再生に失敗しました: \(error)")
+            print(
+                "時報テスト再生: 準備または再生に失敗しました: \(error)"
+            )
         }
     }
 
@@ -419,6 +654,7 @@ struct DesignSettingsView: View {
             }
 
             let squared = squareCropped(image) ?? image
+
             guard let compressedData = squared.jpegData(
                 compressionQuality: 0.85
             ) else {
@@ -433,7 +669,9 @@ struct DesignSettingsView: View {
         }
     }
 
-    private func squareCropped(_ image: UIImage) -> UIImage? {
+    private func squareCropped(
+        _ image: UIImage
+    ) -> UIImage? {
         let width = image.size.width
         let height = image.size.height
 

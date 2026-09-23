@@ -10,8 +10,6 @@ struct ClockView: View {
     @Binding var sweepSecondHand: Bool
     @Binding var tickVolume: Double
     @Binding var showOuterRing: Bool
-    @Binding var followSystemTimeZone: Bool
-    @Binding var gpsSyncEnabled: Bool
 
     let onSettings: () -> Void
     let onUpdateTimeZone: (TimeZone) -> Void
@@ -76,8 +74,6 @@ struct ClockView: View {
                         onUpdateTimeZone(newTimeZone)
                     }
                 ),
-                followSystemTimeZone: $followSystemTimeZone,
-                gpsSyncEnabled: $gpsSyncEnabled,
                 designSettings: designSettings
             ) {
                 showSettings = false
@@ -104,7 +100,8 @@ struct ClockView: View {
                 maxWidth: hourHandWidth,
                 label: hourString(timeZone: timeZone),
                 labelColor: designSettings.hourHandColor,
-                keepLabelsUpright: keepLabelsUpright
+                keepLabelsUpright: keepLabelsUpright,
+                numeralStyle: designSettings.numeralStyle
             )
 
             ClockHand(
@@ -115,7 +112,8 @@ struct ClockView: View {
                 maxWidth: hourHandWidth,
                 label: minuteString(timeZone: timeZone),
                 labelColor: designSettings.minuteHandColor,
-                keepLabelsUpright: keepLabelsUpright
+                keepLabelsUpright: keepLabelsUpright,
+                numeralStyle: designSettings.numeralStyle
             )
 
             ClockHand(
@@ -126,7 +124,14 @@ struct ClockView: View {
                 maxWidth: hourHandWidth,
                 label: secondString(timeZone: timeZone),
                 labelColor: designSettings.secondHandColor,
-                keepLabelsUpright: keepLabelsUpright
+                keepLabelsUpright: keepLabelsUpright,
+                numeralStyle: designSettings.numeralStyle
+            )
+            .animation(
+                sweepSecondHand
+                    ? .linear(duration: 1.0 / 30.0)
+                    : nil,
+                value: secondAngle(timeZone: timeZone)
             )
 
             Circle()
@@ -366,28 +371,201 @@ struct ClockView: View {
     private func hourString(
         timeZone: TimeZone
     ) -> String {
-        String(
-            format: "%d",
-            hour(timeZone: timeZone)
+        formatDigits(
+            String(
+                format: "%02d",
+                hour(timeZone: timeZone)
+            )
         )
     }
 
     private func minuteString(
         timeZone: TimeZone
     ) -> String {
-        String(
-            format: "%02d",
-            minute(timeZone: timeZone)
+        formatDigits(
+            String(
+                format: "%02d",
+                minute(timeZone: timeZone)
+            )
         )
     }
 
     private func secondString(
         timeZone: TimeZone
     ) -> String {
-        String(
-            format: "%02d",
-            second(timeZone: timeZone)
+        formatDigits(
+            String(
+                format: "%02d",
+                second(timeZone: timeZone)
+            )
         )
+    }
+
+    private func formatDigits(_ input: String) -> String {
+        let digitsOnly = input
+            .trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+
+        guard let value = Int(digitsOnly),
+              value >= 0,
+              value <= 99 else {
+            return input
+        }
+
+        let normalized = value < 10
+            ? String(value)
+            : String(format: "%02d", value)
+
+        switch designSettings.numeralStyle {
+        case .latin:
+            return normalized
+
+        case .kanji:
+            let map: [Character: String] = [
+                "0": "〇",
+                "1": "一",
+                "2": "二",
+                "3": "三",
+                "4": "四",
+                "5": "五",
+                "6": "六",
+                "7": "七",
+                "8": "八",
+                "9": "九"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+
+        case .hangul:
+            let map: [Character: String] = [
+                "0": "영",
+                "1": "일",
+                "2": "이",
+                "3": "삼",
+                "4": "사",
+                "5": "오",
+                "6": "육",
+                "7": "칠",
+                "8": "팔",
+                "9": "구"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+
+        case .roman:
+            return romanNumeral(for: value)
+
+        case .arabicIndic:
+            let map: [Character: String] = [
+                "0": "٠",
+                "1": "١",
+                "2": "٢",
+                "3": "٣",
+                "4": "٤",
+                "5": "٥",
+                "6": "٦",
+                "7": "٧",
+                "8": "٨",
+                "9": "٩"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+
+        case .persian:
+            let map: [Character: String] = [
+                "0": "۰",
+                "1": "۱",
+                "2": "۲",
+                "3": "۳",
+                "4": "۴",
+                "5": "۵",
+                "6": "۶",
+                "7": "۷",
+                "8": "۸",
+                "9": "۹"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+
+        case .devanagari:
+            let map: [Character: String] = [
+                "0": "०",
+                "1": "१",
+                "2": "२",
+                "3": "३",
+                "4": "४",
+                "5": "५",
+                "6": "६",
+                "7": "७",
+                "8": "८",
+                "9": "९"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+
+        case .thai:
+            let map: [Character: String] = [
+                "0": "๐",
+                "1": "๑",
+                "2": "๒",
+                "3": "๓",
+                "4": "๔",
+                "5": "๕",
+                "6": "๖",
+                "7": "๗",
+                "8": "๘",
+                "9": "๙"
+            ]
+
+            return normalized
+                .compactMap { map[$0] }
+                .joined()
+        }
+    }
+
+    private func romanNumeral(for value: Int) -> String {
+        guard value > 0 else {
+            return "0"
+        }
+
+        let symbols: [(value: Int, symbol: String)] = [
+            (1000, "M"),
+            (900, "CM"),
+            (500, "D"),
+            (400, "CD"),
+            (100, "C"),
+            (90, "XC"),
+            (50, "L"),
+            (40, "XL"),
+            (10, "X"),
+            (9, "IX"),
+            (5, "V"),
+            (4, "IV"),
+            (1, "I")
+        ]
+
+        var remaining = value
+        var result = ""
+
+        for item in symbols {
+            while remaining >= item.value {
+                result += item.symbol
+                remaining -= item.value
+            }
+        }
+
+        return result
     }
 
     private func timeZoneDisplayName(
@@ -401,7 +579,7 @@ struct ClockView: View {
             return "イギリス／ロンドン"
 
         case "America/New_York":
-            return "アメリカ／ニューヨーク"
+            return "アメリカ／ロンドン"
 
         case "America/Los_Angeles":
             return "アメリカ／ロサンゼルス"
@@ -447,6 +625,15 @@ struct ClockHand: View {
     let label: String
     let labelColor: Color
     let keepLabelsUpright: Bool
+    let numeralStyle: NumeralStyle
+
+    private var labelCircleSize: CGFloat {
+        maxWidth * 1.4
+    }
+
+    private var labelContentSize: CGFloat {
+        maxWidth * 1.14
+    }
 
     var body: some View {
         ZStack {
@@ -464,8 +651,8 @@ struct ClockHand: View {
                 Circle()
                     .fill(Color.white)
                     .frame(
-                        width: maxWidth * 1.4,
-                        height: maxWidth * 1.4
+                        width: labelCircleSize,
+                        height: labelCircleSize
                     )
                     .overlay {
                         Circle()
@@ -476,7 +663,7 @@ struct ClockHand: View {
                     }
                     .shadow(radius: 1)
 
-                Text(label)
+                labelView()
                     .font(
                         .system(
                             size: maxWidth,
@@ -486,16 +673,47 @@ struct ClockHand: View {
                     )
                     .foregroundStyle(labelColor)
                     .shadow(radius: 1)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.35)
+                    .allowsTightening(true)
+                    .frame(
+                        width: labelContentSize,
+                        height: labelContentSize
+                    )
+                    .clipped()
                     .rotationEffect(
                         keepLabelsUpright
                             ? -angle
                             : .zero
                     )
             }
+            .frame(
+                width: labelCircleSize,
+                height: labelCircleSize
+            )
             .offset(
                 y: -length + maxWidth * 0.2
             )
             .rotationEffect(angle)
         }
     }
+
+    @ViewBuilder
+    private func labelView() -> some View {
+        if numeralStyle == .kanji && label.count == 2 {
+            let characters = Array(label)
+
+            VStack(spacing: -maxWidth * 0.12) {
+                ForEach(
+                    characters.indices,
+                    id: \.self
+                ) { index in
+                    Text(String(characters[index]))
+                }
+            }
+        } else {
+            Text(label)
+        }
+    }
 }
+
