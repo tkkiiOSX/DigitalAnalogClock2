@@ -154,7 +154,7 @@ struct ContentView: View {
                 closeDeleteActions()
             }
         } message: {
-            Text("この操作は取り消せません。")
+            Text("この操作は取り消せません。？！")
         }
     }
 
