@@ -14,56 +14,13 @@ enum ClockFrameStyle: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .circle:
-            return "丸枠(Circle) "
+            return "丸枠(Circle)"
 
         case .rectangle:
-            return "角枠(Rectangle) "
+            return "角枠(Rectangle)"
 
         case .roundedRectangle:
             return "角丸枠(Rounded Rectangle)"
-        }
-    }
-}
-
-enum NumeralStyle: String, CaseIterable, Identifiable {
-    case latin
-    case kanji
-    case hangul
-    case roman
-    case arabicIndic
-    case persian
-    case devanagari
-    case thai
-
-    var id: String {
-        rawValue
-    }
-
-    var displayName: String {
-        switch self {
-        case .latin:
-            return "25"
-
-        case .kanji:
-            return "二五"
-
-        case .hangul:
-            return "이오"
-
-        case .roman:
-            return "XXV"
-
-        case .arabicIndic:
-            return "٢٥"
-
-        case .persian:
-            return "۲۵"
-            
-        case .devanagari:
-            return "२५"
-
-        case .thai:
-            return "๒๕"
         }
     }
 }
@@ -72,12 +29,17 @@ enum NumeralStyle: String, CaseIterable, Identifiable {
 final class ClockDesignSettings: ObservableObject {
     private let keyPrefix: String
 
+    private var sharedDefaults: UserDefaults {
+        SharedClockStorage.defaults
+    }
+
     @Published var frameStyle: ClockFrameStyle {
         didSet {
-            UserDefaults.standard.set(
+            sharedDefaults.set(
                 frameStyle.rawValue,
                 forKey: full(Keys.frameStyle)
             )
+            notifyWidget()
         }
     }
 
@@ -87,6 +49,7 @@ final class ClockDesignSettings: ObservableObject {
                 frameColor,
                 key: full(Keys.frameColor)
             )
+            notifyWidget()
         }
     }
 
@@ -96,6 +59,7 @@ final class ClockDesignSettings: ObservableObject {
                 hourHandColor,
                 key: full(Keys.hourHandColor)
             )
+            notifyWidget()
         }
     }
 
@@ -105,6 +69,7 @@ final class ClockDesignSettings: ObservableObject {
                 minuteHandColor,
                 key: full(Keys.minuteHandColor)
             )
+            notifyWidget()
         }
     }
 
@@ -114,6 +79,7 @@ final class ClockDesignSettings: ObservableObject {
                 secondHandColor,
                 key: full(Keys.secondHandColor)
             )
+            notifyWidget()
         }
     }
 
@@ -123,30 +89,46 @@ final class ClockDesignSettings: ObservableObject {
                 backgroundColor,
                 key: full(Keys.backgroundColor)
             )
+            notifyWidget()
         }
     }
 
     @Published var backgroundImageData: Data? {
         didSet {
+            let imageKey = full(Keys.backgroundImage)
+
             if let backgroundImageData {
-                UserDefaults.standard.set(
+                _ = SharedClockStorage.saveBackgroundImage(
                     backgroundImageData,
-                    forKey: full(Keys.backgroundImage)
+                    forKey: imageKey
+                )
+
+                // 写真本体は共有フォルダへ保存するため、
+                // UserDefaultsには残しません。
+                sharedDefaults.removeObject(
+                    forKey: imageKey
                 )
             } else {
-                UserDefaults.standard.removeObject(
-                    forKey: full(Keys.backgroundImage)
+                SharedClockStorage.removeBackgroundImage(
+                    forKey: imageKey
+                )
+
+                sharedDefaults.removeObject(
+                    forKey: imageKey
                 )
             }
+
+            notifyWidget()
         }
     }
 
     @Published var numeralStyle: NumeralStyle {
         didSet {
-            UserDefaults.standard.set(
+            sharedDefaults.set(
                 numeralStyle.rawValue,
                 forKey: full(Keys.numeralStyle)
             )
+            notifyWidget()
         }
     }
 
@@ -161,11 +143,11 @@ final class ClockDesignSettings: ObservableObject {
     init(keyPrefix: String = "clockDesign.") {
         self.keyPrefix = keyPrefix
 
-        let key = { (name: String) in
+        let key: (String) -> String = { name in
             keyPrefix + name
         }
 
-        let defaults = UserDefaults.standard
+        let defaults = SharedClockStorage.defaults
 
         if let rawValue = defaults.string(
             forKey: key(Keys.frameStyle)
@@ -208,9 +190,28 @@ final class ClockDesignSettings: ObservableObject {
             )
         )
 
-        backgroundImageData = defaults.data(
-            forKey: key(Keys.backgroundImage)
-        )
+        let imageKey = key(Keys.backgroundImage)
+
+        if let sharedImageData = SharedClockStorage
+            .loadBackgroundImage(forKey: imageKey) {
+            backgroundImageData = sharedImageData
+        } else if let legacyImageData = defaults.data(
+            forKey: imageKey
+        ) {
+            // 旧UserDefaults保存データを共有ファイルへ移行
+            backgroundImageData = legacyImageData
+
+            _ = SharedClockStorage.saveBackgroundImage(
+                legacyImageData,
+                forKey: imageKey
+            )
+
+            defaults.removeObject(
+                forKey: imageKey
+            )
+        } else {
+            backgroundImageData = nil
+        }
 
         if let rawValue = defaults.string(
             forKey: key(Keys.numeralStyle)
@@ -228,9 +229,8 @@ final class ClockDesignSettings: ObservableObject {
         backgroundImageData = nil
     }
 
-    /// このkeyPrefixに保存されている全デザイン設定を削除します。
     func removeAllStoredSettings() {
-        let defaults = UserDefaults.standard
+        let defaults = SharedClockStorage.defaults
 
         defaults.removeObject(
             forKey: full(Keys.frameStyle)
@@ -251,11 +251,18 @@ final class ClockDesignSettings: ObservableObject {
             forKey: full(Keys.backgroundColor)
         )
         defaults.removeObject(
-            forKey: full(Keys.backgroundImage)
-        )
-        defaults.removeObject(
             forKey: full(Keys.numeralStyle)
         )
+
+        SharedClockStorage.removeBackgroundImage(
+            forKey: full(Keys.backgroundImage)
+        )
+
+        defaults.removeObject(
+            forKey: full(Keys.backgroundImage)
+        )
+
+        notifyWidget()
     }
 
     private func saveColor(
@@ -266,7 +273,7 @@ final class ClockDesignSettings: ObservableObject {
             return
         }
 
-        UserDefaults.standard.set(
+        sharedDefaults.set(
             [
                 components.red,
                 components.green,
@@ -281,7 +288,7 @@ final class ClockDesignSettings: ObservableObject {
         key: String,
         defaultColor: Color
     ) -> Color {
-        guard let values = UserDefaults.standard.array(
+        guard let values = SharedClockStorage.defaults.array(
             forKey: key
         ) as? [Double],
         values.count == 4 else {
@@ -295,6 +302,10 @@ final class ClockDesignSettings: ObservableObject {
             blue: values[2],
             opacity: values[3]
         )
+    }
+
+    private func notifyWidget() {
+        SharedClockStorage.reloadWidget()
     }
 
     private func full(_ key: String) -> String {

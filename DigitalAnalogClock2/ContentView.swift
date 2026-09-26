@@ -32,11 +32,17 @@ final class ClockInstance: ObservableObject, Identifiable {
     ) {
         self.id = id
         self.timeZoneIdentifier = timeZoneIdentifier
-        if let designSettings = designSettings {
+
+        if let designSettings {
             self.designSettings = designSettings
         } else {
-            self.designSettings = ClockDesignSettings(keyPrefix: "clockDesign.\(id).")
+            self.designSettings = ClockDesignSettings(
+                keyPrefix: SharedClockStorage.clockDesignPrefix(
+                    for: id
+                )
+            )
         }
+
         self.showOuterRing = showOuterRing
     }
 }
@@ -44,25 +50,46 @@ final class ClockInstance: ObservableObject, Identifiable {
 struct ContentView: View {
     @State private var currentDate = Date()
 
-    @AppStorage("keepLabelsUpright")
+    @AppStorage(
+        "keepLabelsUpright",
+        store: SharedClockStorage.defaults
+    )
     private var keepLabelsUpright = false
 
-    @AppStorage("sweepSecondHand")
+    @AppStorage(
+        "sweepSecondHand",
+        store: SharedClockStorage.defaults
+    )
     private var sweepSecondHand = true
 
-    @AppStorage("tickVolume")
+    @AppStorage(
+        "tickVolume",
+        store: SharedClockStorage.defaults
+    )
     private var tickVolume: Double = 0.8
 
-    @AppStorage("hourlyChimeEnabled")
+    @AppStorage(
+        "hourlyChimeEnabled",
+        store: SharedClockStorage.defaults
+    )
     private var hourlyChimeEnabled = false
 
-    @AppStorage("hourlyChimeVolume")
+    @AppStorage(
+        "hourlyChimeVolume",
+        store: SharedClockStorage.defaults
+    )
     private var hourlyChimeVolume: Double = 1.0
 
-    @AppStorage("hourlyChimeIntervalMinutes")
+    @AppStorage(
+        "hourlyChimeIntervalMinutes",
+        store: SharedClockStorage.defaults
+    )
     private var hourlyChimeIntervalMinutes = 60
 
-    @AppStorage("savedClocks")
+    @AppStorage(
+        "savedClocks",
+        store: SharedClockStorage.defaults
+    )
     private var savedClocksData: Data = {
         let identifiers = [ClockInfo(id: UUID(), timeZoneIdentifier: TimeZone.current.identifier, showOuterRing: true)]
         return (try? JSONEncoder().encode(identifiers)) ?? Data()
@@ -337,7 +364,11 @@ struct ContentView: View {
             from: savedClocksData
         ) {
             clocks = infos.map { info in
-                let designSettings = ClockDesignSettings(keyPrefix: "clockDesign.\(info.id).")
+                let designSettings = ClockDesignSettings(
+                    keyPrefix: SharedClockStorage.clockDesignPrefix(
+                        for: info.id
+                    )
+                )
                 return ClockInstance(
                     id: info.id,
                     timeZoneIdentifier: info.timeZoneIdentifier,
@@ -366,6 +397,7 @@ struct ContentView: View {
         }
 
         savedClocksData = data
+        SharedClockStorage.reloadWidget()
     }
 
     /// 時計を削除し、関連するUserDefaultsのデザイン設定も削除するメソッド

@@ -9,6 +9,10 @@ import SwiftUI
 
 @main
 struct DigitalAnalogClock2App: App {
+    init() {
+        SharedClockStorage.migrateLegacySettingsIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

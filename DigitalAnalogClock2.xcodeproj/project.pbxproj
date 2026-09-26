@@ -6,14 +6,77 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EBC64A4B3063ACF000421367 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4A3063ACF000421367 /* WidgetKit.framework */; };
+		EBC64A4D3063ACF000421367 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4C3063ACF000421367 /* SwiftUI.framework */; };
+		EBC64A583063ACF300421367 /* DigitalAnalogClock2WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		EBC64A563063ACF300421367 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EB086D1130415D4200AF1DFC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EBC64A473063ACEF00421367;
+			remoteInfo = DigitalAnalogClock2WidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EBC64A593063ACF300421367 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EBC64A583063ACF300421367 /* DigitalAnalogClock2WidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		EB086D1930415D4200AF1DFC /* DigitalAnalogClock2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DigitalAnalogClock2.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DigitalAnalogClock2WidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBC64A4A3063ACF000421367 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		EBC64A4C3063ACF000421367 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		EBC64A873063CA2600421367 /* DigitalAnalogClock2WidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DigitalAnalogClock2WidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		EBC64A5C3063ACF300421367 /* Exceptions for "DigitalAnalogClock2Widget" folder in "DigitalAnalogClock2WidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = EBC64A473063ACEF00421367 /* DigitalAnalogClock2WidgetExtension */;
+		};
+		EBC64A853063BAD300421367 /* Exceptions for "DigitalAnalogClock2" folder in "DigitalAnalogClock2WidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				SharedClockHand.swift,
+				SharedClockStorage.swift,
+			);
+			target = EBC64A473063ACEF00421367 /* DigitalAnalogClock2WidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		EB086D1B30415D4200AF1DFC /* DigitalAnalogClock2 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				EBC64A853063BAD300421367 /* Exceptions for "DigitalAnalogClock2" folder in "DigitalAnalogClock2WidgetExtension" target */,
+			);
 			path = DigitalAnalogClock2;
+			sourceTree = "<group>";
+		};
+		EBC64A4E3063ACF000421367 /* DigitalAnalogClock2Widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				EBC64A5C3063ACF300421367 /* Exceptions for "DigitalAnalogClock2Widget" folder in "DigitalAnalogClock2WidgetExtension" target */,
+			);
+			path = DigitalAnalogClock2Widget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -26,13 +89,25 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EBC64A453063ACEF00421367 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EBC64A4D3063ACF000421367 /* SwiftUI.framework in Frameworks */,
+				EBC64A4B3063ACF000421367 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		EB086D1030415D4200AF1DFC = {
 			isa = PBXGroup;
 			children = (
+				EBC64A873063CA2600421367 /* DigitalAnalogClock2WidgetExtension.entitlements */,
 				EB086D1B30415D4200AF1DFC /* DigitalAnalogClock2 */,
+				EBC64A4E3063ACF000421367 /* DigitalAnalogClock2Widget */,
+				EBC64A493063ACF000421367 /* Frameworks */,
 				EB086D1A30415D4200AF1DFC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,8 +116,18 @@
 			isa = PBXGroup;
 			children = (
 				EB086D1930415D4200AF1DFC /* DigitalAnalogClock2.app */,
+				EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		EBC64A493063ACF000421367 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				EBC64A4A3063ACF000421367 /* WidgetKit.framework */,
+				EBC64A4C3063ACF000421367 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -55,10 +140,12 @@
 				EB086D1530415D4200AF1DFC /* Sources */,
 				EB086D1630415D4200AF1DFC /* Frameworks */,
 				EB086D1730415D4200AF1DFC /* Resources */,
+				EBC64A593063ACF300421367 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				EBC64A573063ACF300421367 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				EB086D1B30415D4200AF1DFC /* DigitalAnalogClock2 */,
@@ -69,6 +156,28 @@
 			productName = DigitalAnalogClock2;
 			productReference = EB086D1930415D4200AF1DFC /* DigitalAnalogClock2.app */;
 			productType = "com.apple.product-type.application";
+		};
+		EBC64A473063ACEF00421367 /* DigitalAnalogClock2WidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EBC64A5D3063ACF300421367 /* Build configuration list for PBXNativeTarget "DigitalAnalogClock2WidgetExtension" */;
+			buildPhases = (
+				EBC64A443063ACEF00421367 /* Sources */,
+				EBC64A453063ACEF00421367 /* Frameworks */,
+				EBC64A463063ACEF00421367 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				EBC64A4E3063ACF000421367 /* DigitalAnalogClock2Widget */,
+			);
+			name = DigitalAnalogClock2WidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = DigitalAnalogClock2WidgetExtension;
+			productReference = EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -81,6 +190,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					EB086D1830415D4200AF1DFC = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					EBC64A473063ACEF00421367 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -100,12 +212,20 @@
 			projectRoot = "";
 			targets = (
 				EB086D1830415D4200AF1DFC /* DigitalAnalogClock2 */,
+				EBC64A473063ACEF00421367 /* DigitalAnalogClock2WidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		EB086D1730415D4200AF1DFC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EBC64A463063ACEF00421367 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +242,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EBC64A443063ACEF00421367 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		EBC64A573063ACF300421367 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EBC64A473063ACEF00421367 /* DigitalAnalogClock2WidgetExtension */;
+			targetProxy = EBC64A563063ACF300421367 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		EB086D2230415D4400AF1DFC /* Debug */ = {
@@ -251,8 +386,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2/DigitalAnalogClock2.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = EYSYK49KTW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -285,8 +421,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2/DigitalAnalogClock2.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 16;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = EYSYK49KTW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -314,6 +451,70 @@
 			};
 			name = Release;
 		};
+		EBC64A5A3063ACF300421367 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2WidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = EYSYK49KTW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DigitalAnalogClock2Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DigitalAnalogClock2Widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.goemon.DigitalAnalogClock2.DigitalAnalogClock2Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EBC64A5B3063ACF300421367 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2WidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = EYSYK49KTW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DigitalAnalogClock2Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DigitalAnalogClock2Widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jp.goemon.DigitalAnalogClock2.DigitalAnalogClock2Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -331,6 +532,15 @@
 			buildConfigurations = (
 				EB086D2530415D4400AF1DFC /* Debug */,
 				EB086D2630415D4400AF1DFC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EBC64A5D3063ACF300421367 /* Build configuration list for PBXNativeTarget "DigitalAnalogClock2WidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EBC64A5A3063ACF300421367 /* Debug */,
+				EBC64A5B3063ACF300421367 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
