@@ -64,6 +64,7 @@ struct SettingsView: View {
                 clockDesignSection
                 timeZoneSection
                 numeralStyleSection
+                widgetInfoSection
             }
             .navigationTitle("設定 (Settings)")
             .toolbar {
@@ -248,6 +249,25 @@ struct SettingsView: View {
             Text(
                 "複数の数字形式から選択できます。\n"
                     + "(You can choose from multiple number formats.)"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .fixedSize(
+                horizontal: false,
+                vertical: true
+            )
+        }
+    }
+
+    private var widgetInfoSection: some View {
+        Section(header: Text("Widgetについて (About Widget)")) {
+            Text(
+                "Widgetには、時計一覧の一番上にある時計（最初の時計）の設定が反映されます。\n"
+                    + "Widgetに秒針は表示されません。\n"
+                    + "設定を変更してからWidgetに反映されるまで、時間がかかる場合があります。しばらく待っても更新されない場合は、ホーム画面からWidgetを削除し、もう一度追加してください。\n\n"
+                    + "The Widget uses the settings of the first clock at the top of the clock list.\n"
+                    + "The second hand is not displayed in the Widget.\n"
+                    + "Changes may take some time to appear. If the Widget still does not update, remove it from the Home Screen and add it again."
             )
             .font(.footnote)
             .foregroundStyle(.secondary)

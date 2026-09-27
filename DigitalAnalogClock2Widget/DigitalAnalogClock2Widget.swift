@@ -40,7 +40,8 @@ struct Provider: TimelineProvider {
         let timeZoneIdentifier =
             SharedWidgetSettings.timeZoneIdentifier()
 
-        for minuteOffset in 0..<60 {
+        //for minuteOffset in 0..<60 {
+        for minuteOffset in 0..<6 {
             guard let entryDate = calendar.date(
                 byAdding: .minute,
                 value: minuteOffset,
@@ -284,25 +285,11 @@ struct DigitalAnalogClock2WidgetEntryView: View {
             from: entry.date
         )
 
-        let second = calendar.component(
-            .second,
-            from: entry.date
-        )
-
-        let nanosecond = calendar.component(
-            .nanosecond,
-            from: entry.date
-        )
-
         let hourValue =
             Double(hour % 12) + Double(minute) / 60.0
 
         let minuteValue =
-            Double(minute) + Double(second) / 60.0
-
-        let secondValue =
-            Double(second)
-            + Double(nanosecond) / 1_000_000_000.0
+            Double(minute)
 
         let hourAngle = Angle.degrees(
             hourValue / 12.0 * 360.0
@@ -310,10 +297,6 @@ struct DigitalAnalogClock2WidgetEntryView: View {
 
         let minuteAngle = Angle.degrees(
             minuteValue / 60.0 * 360.0
-        )
-
-        let secondAngle = Angle.degrees(
-            secondValue / 60.0 * 360.0
         )
 
         return ZStack {
@@ -343,18 +326,6 @@ struct DigitalAnalogClock2WidgetEntryView: View {
                 maxWidth: labelSize,
                 label: numberLabel(minute),
                 labelColor: designSettings.minuteHandColor,
-                keepLabelsUpright: true,
-                numeralStyle: designSettings.numeralStyle
-            )
-
-            ClockHand(
-                angle: secondAngle,
-                length: clockRadius * 0.92,
-                color: designSettings.secondHandColor,
-                minWidth: handWidth,
-                maxWidth: labelSize,
-                label: numberLabel(second),
-                labelColor: designSettings.secondHandColor,
                 keepLabelsUpright: true,
                 numeralStyle: designSettings.numeralStyle
             )
