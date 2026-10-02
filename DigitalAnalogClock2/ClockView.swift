@@ -52,7 +52,7 @@ struct ClockView: View {
                 )
             )
         }
-        .sheet(isPresented: $showSettings) {
+        .navigationDestination(isPresented: $showSettings) {
             SettingsView(
                 keepLabelsUpright: $keepLabelsUpright,
                 sweepSecondHand: $sweepSecondHand,
@@ -615,6 +615,3 @@ struct ClockView: View {
         }
     }
 }
-
-
-

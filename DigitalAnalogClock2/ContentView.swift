@@ -9,12 +9,6 @@ import SwiftUI
 import Combine
 import AVFoundation
 
-struct ClockInfo: Codable, Identifiable {
-    let id: UUID
-    let timeZoneIdentifier: String
-    let showOuterRing: Bool
-}
-
 @MainActor
 final class ClockInstance: ObservableObject, Identifiable {
     let id: UUID
@@ -91,7 +85,14 @@ struct ContentView: View {
         store: SharedClockStorage.defaults
     )
     private var savedClocksData: Data = {
-        let identifiers = [ClockInfo(id: UUID(), timeZoneIdentifier: TimeZone.current.identifier, showOuterRing: true)]
+        let identifiers = [
+            ClockInfo(
+                id: UUID(),
+                timeZoneIdentifier: TimeZone.current.identifier,
+                showOuterRing: true
+            )
+        ]
+
         return (try? JSONEncoder().encode(identifiers)) ?? Data()
     }()
 
@@ -105,7 +106,7 @@ struct ContentView: View {
     @State private var lastSecondPlayed = -1
     @State private var lastChimeTargetStart: Date?
 
-    @State private var clockToDelete: ClockInstance? = nil
+    @State private var clockToDelete: ClockInstance?
     @State private var showingDeleteAlert = false
     @State private var closeDeleteActionsTrigger = 0
 
@@ -134,13 +135,18 @@ struct ContentView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            if geometry.size.height > geometry.size.width {
-                portraitLayout
-            } else {
-                landscapeLayout(
-                    availableHeight: max(120, geometry.size.height - 32)
-                )
+        NavigationStack {
+            GeometryReader { geometry in
+                if geometry.size.height > geometry.size.width {
+                    portraitLayout
+                } else {
+                    landscapeLayout(
+                        availableHeight: max(
+                            120,
+                            geometry.size.height - 32
+                        )
+                    )
+                }
             }
         }
         .onAppear {
@@ -166,13 +172,16 @@ struct ContentView: View {
         .onChange(of: hourlyChimeIntervalMinutes) { _, _ in
             lastChimeTargetStart = nil
         }
-        .alert("この時計を削除しますか？", isPresented: $showingDeleteAlert) {
+        .alert(
+            "この時計を削除しますか？",
+            isPresented: $showingDeleteAlert
+        ) {
             Button("はい", role: .destructive) {
                 if let clockToDelete {
                     removeClock(clockToDelete)
                 }
 
-                clockToDelete = nil
+                self.clockToDelete = nil
                 closeDeleteActions()
             }
 
@@ -202,7 +211,9 @@ struct ContentView: View {
         }
     }
 
-    private func landscapeLayout(availableHeight: CGFloat) -> some View {
+    private func landscapeLayout(
+        availableHeight: CGFloat
+    ) -> some View {
         let spacing: CGFloat = 24
         let clockSize = availableHeight
         let itemCount = CGFloat(clocks.count + 1)
@@ -232,7 +243,9 @@ struct ContentView: View {
         .frame(maxHeight: .infinity)
     }
 
-    private func deletableClockItem(_ clock: ClockInstance) -> some View {
+    private func deletableClockItem(
+        _ clock: ClockInstance
+    ) -> some View {
         SwipeToRevealDeleteButton(
             canDelete: true,
             closeTrigger: closeDeleteActionsTrigger,
@@ -245,7 +258,9 @@ struct ContentView: View {
         }
     }
 
-    private func clockItem(_ clock: ClockInstance) -> some View {
+    private func clockItem(
+        _ clock: ClockInstance
+    ) -> some View {
         let timeZone =
             TimeZone(identifier: clock.timeZoneIdentifier)
             ?? .current
@@ -261,7 +276,10 @@ struct ContentView: View {
             keepLabelsUpright: $keepLabelsUpright,
             sweepSecondHand: $sweepSecondHand,
             tickVolume: $tickVolume,
-            showOuterRing: binding(for: clock, keyPath: \.showOuterRing),
+            showOuterRing: binding(
+                for: clock,
+                keyPath: \.showOuterRing
+            ),
             onSettings: {
                 setSettingsVisible(true, for: clock)
             },
@@ -280,7 +298,9 @@ struct ContentView: View {
         }
     }
 
-    private func addClockButton(size: CGFloat?) -> some View {
+    private func addClockButton(
+        size: CGFloat?
+    ) -> some View {
         Button {
             addClock()
         } label: {
@@ -290,7 +310,10 @@ struct ContentView: View {
                 )
                 .stroke(
                     style: StrokeStyle(
-                        lineWidth: max(3, (size ?? 200) * 0.03),
+                        lineWidth: max(
+                            3,
+                            (size ?? 200) * 0.03
+                        ),
                         dash: [8]
                     )
                 )
@@ -299,7 +322,10 @@ struct ContentView: View {
                 Image(systemName: "plus")
                     .font(
                         .system(
-                            size: max(36, (size ?? 200) * 0.18),
+                            size: max(
+                                36,
+                                (size ?? 200) * 0.18
+                            ),
                             weight: .bold
                         )
                     )
@@ -350,6 +376,7 @@ struct ContentView: View {
             timeZoneIdentifier: "Asia/Tokyo",
             showOuterRing: true
         )
+
         clocks.append(newClock)
         persistClocks()
     }
@@ -369,6 +396,7 @@ struct ContentView: View {
                         for: info.id
                     )
                 )
+
                 return ClockInstance(
                     id: info.id,
                     timeZoneIdentifier: info.timeZoneIdentifier,
@@ -378,6 +406,7 @@ struct ContentView: View {
             }
         } else {
             let defaultId = UUID()
+
             clocks = [
                 ClockInstance(
                     id: defaultId,
@@ -385,12 +414,19 @@ struct ContentView: View {
                     showOuterRing: true
                 )
             ]
+
             persistClocks()
         }
     }
 
     private func persistClocks() {
-        let infos = clocks.map { ClockInfo(id: $0.id, timeZoneIdentifier: $0.timeZoneIdentifier, showOuterRing: $0.showOuterRing) }
+        let infos = clocks.map { clock in
+            ClockInfo(
+                id: clock.id,
+                timeZoneIdentifier: clock.timeZoneIdentifier,
+                showOuterRing: clock.showOuterRing
+            )
+        }
 
         guard let data = try? JSONEncoder().encode(infos) else {
             return
@@ -400,17 +436,18 @@ struct ContentView: View {
         SharedClockStorage.reloadWidget()
     }
 
-    /// 時計を削除し、関連するUserDefaultsのデザイン設定も削除するメソッド
-    private func removeClock(_ clock: ClockInstance) {
-        // Remove design settings from UserDefaults
+    /// 時計を削除し、関連するUserDefaultsのデザイン設定も削除します。
+    private func removeClock(
+        _ clock: ClockInstance
+    ) {
         clock.designSettings.removeAllStoredSettings()
-
-        // Remove from clocks array
         clocks.removeAll { $0.id == clock.id }
         persistClocks()
     }
 
-    private func handleTimer(_ date: Date) {
+    private func handleTimer(
+        _ date: Date
+    ) {
         currentDate = date
         handleChime(date)
 
@@ -431,7 +468,9 @@ struct ContentView: View {
         lastSecondPlayed = second
     }
 
-    private func handleChime(_ date: Date) {
+    private func handleChime(
+        _ date: Date
+    ) {
         guard hourlyChimeEnabled,
               hourlyChimeVolume > 0,
               let target = nextChimeTargetStart(after: date)
@@ -458,7 +497,9 @@ struct ContentView: View {
         lastChimeTargetStart = target
     }
 
-    private func nextChimeTargetStart(after date: Date) -> Date? {
+    private func nextChimeTargetStart(
+        after date: Date
+    ) -> Date? {
         let calendar = calendar(
             timeZone: clocks.firstTimeZone()
         )
@@ -477,7 +518,9 @@ struct ContentView: View {
         )
     }
 
-    private func calendar(timeZone: TimeZone) -> Calendar {
+    private func calendar(
+        timeZone: TimeZone
+    ) -> Calendar {
         var calendar = Calendar.current
         calendar.timeZone = timeZone
         return calendar
@@ -613,7 +656,13 @@ private struct SwipeToRevealDeleteButton<Content: View>: View {
     private let swipeThreshold: CGFloat = 36
 
     private var currentOffset: CGFloat {
-        min(0, max(-actionWidth, settledOffset + dragOffset))
+        min(
+            0,
+            max(
+                -actionWidth,
+                settledOffset + dragOffset
+            )
+        )
     }
 
     var body: some View {
@@ -629,7 +678,10 @@ private struct SwipeToRevealDeleteButton<Content: View>: View {
                         Text("削除")
                             .font(.caption.weight(.semibold))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity
+                    )
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
@@ -647,7 +699,8 @@ private struct SwipeToRevealDeleteButton<Content: View>: View {
                     DragGesture(minimumDistance: 16)
                         .onChanged { value in
                             guard canDelete,
-                                  abs(value.translation.width) > abs(value.translation.height)
+                                  abs(value.translation.width)
+                                    > abs(value.translation.height)
                             else {
                                 return
                             }
@@ -659,11 +712,15 @@ private struct SwipeToRevealDeleteButton<Content: View>: View {
                                 return
                             }
 
-                            let projectedOffset = settledOffset + value.translation.width
-                            let shouldOpen = projectedOffset < -swipeThreshold
+                            let projectedOffset =
+                                settledOffset + value.translation.width
+                            let shouldOpen =
+                                projectedOffset < -swipeThreshold
 
                             withAnimation(.snappy(duration: 0.2)) {
-                                settledOffset = shouldOpen ? -actionWidth : 0
+                                settledOffset = shouldOpen
+                                    ? -actionWidth
+                                    : 0
                                 dragOffset = 0
                             }
                         }
@@ -690,7 +747,7 @@ private struct SwipeToRevealDeleteButton<Content: View>: View {
 
 private extension Array where Element == ClockInstance {
     func firstTimeZone() -> TimeZone {
-        guard let first = first else {
+        guard let first else {
             return .current
         }
 

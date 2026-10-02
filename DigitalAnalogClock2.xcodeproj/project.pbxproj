@@ -10,6 +10,7 @@
 		EBC64A4B3063ACF000421367 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4A3063ACF000421367 /* WidgetKit.framework */; };
 		EBC64A4D3063ACF000421367 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4C3063ACF000421367 /* SwiftUI.framework */; };
 		EBC64A583063ACF300421367 /* DigitalAnalogClock2WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EBF7BD1E306DFF0D0034FD0A /* ClockInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF7BD1D306DFF0C0034FD0A /* ClockInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,6 +43,7 @@
 		EBC64A4A3063ACF000421367 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		EBC64A4C3063ACF000421367 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		EBC64A873063CA2600421367 /* DigitalAnalogClock2WidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DigitalAnalogClock2WidgetExtension.entitlements; sourceTree = "<group>"; };
+		EBF7BD1D306DFF0C0034FD0A /* ClockInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInfo.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -109,6 +111,7 @@
 				EBC64A4E3063ACF000421367 /* DigitalAnalogClock2Widget */,
 				EBC64A493063ACF000421367 /* Frameworks */,
 				EB086D1A30415D4200AF1DFC /* Products */,
+				EBF7BD1D306DFF0C0034FD0A /* ClockInfo.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -239,6 +242,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EBF7BD1E306DFF0D0034FD0A /* ClockInfo.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

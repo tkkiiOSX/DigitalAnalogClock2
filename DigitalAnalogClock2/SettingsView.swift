@@ -1,7 +1,4 @@
 import SwiftUI
-import Foundation
-import PhotosUI
-import UIKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -15,8 +12,6 @@ struct SettingsView: View {
     @ObservedObject var designSettings: ClockDesignSettings
 
     var onOK: () -> Void
-
-    @State private var showingDesignSettings = false
 
     private static let timeZoneOptions: [TimeZoneOption] = {
         let referenceDate = Date()
@@ -59,37 +54,32 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                clockDesignSection
-                timeZoneSection
-                numeralStyleSection
-                widgetInfoSection
-            }
-            .navigationTitle("設定 (Settings)")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完了 (Done)") {
-                        closeSettings()
-                    }
+        Form {
+            clockDesignSection
+            timeZoneSection
+            numeralStyleSection
+            widgetInfoSection
+        }
+        .navigationTitle("設定 (Settings)")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("完了 (Done)") {
+                    closeSettings()
                 }
             }
-        }
-        .sheet(isPresented: $showingDesignSettings) {
-            DesignSettingsView(
-                keepLabelsUpright: $keepLabelsUpright,
-                sweepSecondHand: $sweepSecondHand,
-                tickVolume: $tickVolume,
-                showOuterRing: $showOuterRing,
-                settings: designSettings
-            )
         }
     }
 
     private var clockDesignSection: some View {
         Section(header: Text("時計デザイン (Clock Design)")) {
-            Button {
-                showingDesignSettings = true
+            NavigationLink {
+                DesignSettingsView(
+                    keepLabelsUpright: $keepLabelsUpright,
+                    sweepSecondHand: $sweepSecondHand,
+                    tickVolume: $tickVolume,
+                    showOuterRing: $showOuterRing,
+                    settings: designSettings
+                )
             } label: {
                 VStack(
                     alignment: .leading,
@@ -577,13 +567,15 @@ private extension String {
 
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
-        SettingsView(
-            keepLabelsUpright: .constant(true),
-            sweepSecondHand: .constant(true),
-            tickVolume: .constant(0.8),
-            showOuterRing: .constant(true),
-            timeZone: .constant(.current),
-            designSettings: ClockDesignSettings()
-        ) {}
+        NavigationStack {
+            SettingsView(
+                keepLabelsUpright: .constant(true),
+                sweepSecondHand: .constant(true),
+                tickVolume: .constant(0.8),
+                showOuterRing: .constant(true),
+                timeZone: .constant(.current),
+                designSettings: ClockDesignSettings()
+            ) {}
+        }
     }
 }
