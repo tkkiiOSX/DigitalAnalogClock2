@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation // Uses TimeZoneDisplayNameProvider
 
 struct ClockView: View {
     let date: Date
@@ -244,7 +245,7 @@ struct ClockView: View {
         size: CGFloat,
         timeZone: TimeZone
     ) -> some View {
-        Text(timeZoneDisplayName(timeZone))
+        Text(TimeZoneDisplayNameProvider.displayName(for: timeZone))
             .font(
                 .system(
                     size: max(11, size * 0.035),
@@ -567,54 +568,4 @@ struct ClockView: View {
 
         return result
     }
-
-    private func timeZoneDisplayName(
-        _ timeZone: TimeZone
-    ) -> String {
-        switch timeZone.identifier {
-        case "Asia/Tokyo", "Japan":
-            return "日本／東京"
-
-        case "Europe/London":
-            return "イギリス／ロンドン"
-
-        case "America/New_York":
-            return "アメリカ／ロンドン"
-
-        case "America/Los_Angeles":
-            return "アメリカ／ロサンゼルス"
-
-        case "Asia/Seoul":
-            return "韓国／ソウル"
-
-        case "Asia/Shanghai":
-            return "中国／上海"
-
-        case "Europe/Paris":
-            return "フランス／パリ"
-
-        case "Europe/Berlin":
-            return "ドイツ／ベルリン"
-
-        case "Australia/Sydney":
-            return "オーストラリア／シドニー"
-
-        case "Asia/Amman":
-            return "ヨルダン／アンマン"
-
-        default:
-            return timeZone.identifier
-                .replacingOccurrences(
-                    of: "_",
-                    with: " "
-                )
-                .replacingOccurrences(
-                    of: "/",
-                    with: "／"
-                )
-        }
-    }
 }
-
-
-

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EB0826BA30812368001C2B49 /* TimeZoneDisplayName.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB0826B930812368001C2B49 /* TimeZoneDisplayName.swift */; };
 		EBC64A4B3063ACF000421367 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4A3063ACF000421367 /* WidgetKit.framework */; };
 		EBC64A4D3063ACF000421367 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBC64A4C3063ACF000421367 /* SwiftUI.framework */; };
 		EBC64A583063ACF300421367 /* DigitalAnalogClock2WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -37,6 +38,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		EB0826B930812368001C2B49 /* TimeZoneDisplayName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeZoneDisplayName.swift; sourceTree = "<group>"; };
 		EB086D1930415D4200AF1DFC /* DigitalAnalogClock2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DigitalAnalogClock2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBC64A483063ACEF00421367 /* DigitalAnalogClock2WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = DigitalAnalogClock2WidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBC64A4A3063ACF000421367 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -108,6 +110,7 @@
 				EB086D1B30415D4200AF1DFC /* DigitalAnalogClock2 */,
 				EBC64A4E3063ACF000421367 /* DigitalAnalogClock2Widget */,
 				EBC64A493063ACF000421367 /* Frameworks */,
+				EB0826B930812368001C2B49 /* TimeZoneDisplayName.swift */,
 				EB086D1A30415D4200AF1DFC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -239,6 +242,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EB0826BA30812368001C2B49 /* TimeZoneDisplayName.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -388,7 +392,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2/DigitalAnalogClock2.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = EYSYK49KTW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -403,7 +407,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.goemon.DigitalAnalogClock2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -423,7 +427,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = DigitalAnalogClock2/DigitalAnalogClock2.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 17;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = EYSYK49KTW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -438,7 +442,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.0;
+				MARKETING_VERSION = 2.1;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.goemon.DigitalAnalogClock2;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

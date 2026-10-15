@@ -5,6 +5,7 @@
 //  Created by Xcode2021 on 2026/09/23.
 //
 
+import Foundation
 import WidgetKit
 import SwiftUI
 import UIKit
@@ -413,7 +414,7 @@ struct DigitalAnalogClock2WidgetEntryView: View {
     }
 
     private func timeZoneLabel(size: CGFloat) -> some View {
-        Text(verbatim: timeZoneDisplayName)
+        Text(verbatim: TimeZoneDisplayNameProvider.displayName(for: timeZone))
             .unredacted()
             .font(
                 .system(
@@ -429,39 +430,6 @@ struct DigitalAnalogClock2WidgetEntryView: View {
                 in: RoundedRectangle(cornerRadius: 8)
             )
             .padding(8)
-    }
-
-    private var timeZoneDisplayName: String {
-        switch timeZone.identifier {
-        case "Asia/Tokyo", "Japan":
-            return "日本／東京"
-
-        case "Asia/Seoul":
-            return "韓国／ソウル"
-
-        case "Europe/London":
-            return "イギリス／ロンドン"
-
-        case "America/New_York":
-            return "アメリカ／ニューヨーク"
-
-        case "America/Los_Angeles":
-            return "アメリカ／ロサンゼルス"
-
-        case "Asia/Shanghai":
-            return "中国／上海"
-
-        default:
-            return timeZone.identifier
-                .replacingOccurrences(
-                    of: "_",
-                    with: " "
-                )
-                .replacingOccurrences(
-                    of: "/",
-                    with: "／"
-                )
-        }
     }
 
     private func calendar(for timeZone: TimeZone) -> Calendar {
@@ -698,4 +666,39 @@ struct DigitalAnalogClock2Widget: Widget {
         date: Date().addingTimeInterval(60),
         timeZoneIdentifier: "Asia/Tokyo"
     )
+}
+
+struct TimeZoneDisplayNameProvider {
+    static func displayName(for timeZone: TimeZone) -> String {
+        switch timeZone.identifier {
+        case "Asia/Tokyo", "Japan":
+            return "日本／東京"
+
+        case "Asia/Seoul":
+            return "韓国／ソウル"
+
+        case "Europe/London":
+            return "イギリス／ロンドン"
+
+        case "America/New_York":
+            return "アメリカ／ニューヨーク"
+
+        case "America/Los_Angeles":
+            return "アメリカ／ロサンゼルス"
+
+        case "Asia/Shanghai":
+            return "中国／上海"
+
+        default:
+            return timeZone.identifier
+                .replacingOccurrences(
+                    of: "_",
+                    with: " "
+                )
+                .replacingOccurrences(
+                    of: "/",
+                    with: "／"
+                )
+        }
+    }
 }
